@@ -1,0 +1,12 @@
+{
+  "name": "neito-agent-desktop",
+  "version": "2.0.0",
+  "description": "Neito-Agent Realtime Multimodal Desktop Mascot (Xiaozhi v2 + OmniVoice + YOLO11n/YOLO-World)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^33.2.0"
+  }
+}

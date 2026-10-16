@@ -1,0 +1,50 @@
+{
+  "id": "clover",
+  "name": "Clover Reflex Protocol",
+  "category": "game",
+  "process_matches": [
+    "clover.exe"
+  ],
+  "title_keywords": [
+    "clover"
+  ],
+  "yolo_classes": [
+    "health_bar",
+    "minimap_hud",
+    "boss_alert",
+    "objective_timer",
+    "dialog_prompt"
+  ],
+  "yolo_weights": "yolo11n_clover.pt",
+  "system_prompt_addon": "Chế độ phản xạ tốc độ cao cho Clover. Trả lời cực nhanh, ưu tiên chiến thuật và dữ liệu thực chiến.",
+  "knowledge_pack": {
+    "clover": "Bộ giao thức Clover đã nạp: theo dõi health_bar, minimap_hud, boss_alert ở tốc độ cao.",
+    "chiến thuật": "Ưu tiên quan sát HUD Clover và kích hoạt phản xạ <15ms khi có biến động."
+  },
+  "reflex_rules": [
+    {
+      "id": "rx_clover_guide",
+      "trigger_type": "keyword",
+      "patterns": [
+        "clover",
+        "hướng dẫn",
+        "mẹo",
+        "combo",
+        "chiến thuật"
+      ],
+      "response": "Giao thức Clover đang kích hoạt! Mắt YOLO11n đang khóa mục tiêu: health_bar, minimap_hud, boss_alert.",
+      "emotion": "happy",
+      "cooldown_sec": 3
+    },
+    {
+      "id": "rx_clover_vision",
+      "trigger_type": "vision",
+      "target_class": "health_bar",
+      "min_conf": 0.45,
+      "response": "Phát hiện tín hiệu health_bar trong Clover! Chú ý xử lý tình huống ngay!",
+      "emotion": "alert",
+      "cooldown_sec": 18
+    }
+  ],
+  "updated_at": 1792132459
+}

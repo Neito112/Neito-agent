@@ -1,0 +1,34 @@
+{
+  "id": "auto_chrome",
+  "name": "Chrome",
+  "category": "auto",
+  "process_matches": [
+    "chrome.exe"
+  ],
+  "title_keywords": [
+    "chrome"
+  ],
+  "yolo_classes": [
+    "hud_element",
+    "health_bar",
+    "dialog_box",
+    "error_alert"
+  ],
+  "yolo_weights": "yolo11n.pt",
+  "system_prompt_addon": "Tự động tối ưu phản xạ cho 'Chrome' (chrome.exe).",
+  "knowledge_pack": {
+    "context": "Đang đồng bộ thời gian thực với Chrome."
+  },
+  "reflex_rules": [
+    {
+      "id": "rx_chrome_alert",
+      "trigger_type": "vision",
+      "target_class": "player_hp_low",
+      "min_conf": 0.48,
+      "response": "Chú ý trạng thái trên màn hình!",
+      "emotion": "alert",
+      "cooldown_sec": 20
+    }
+  ],
+  "updated_at": 1792132391
+}

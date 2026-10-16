@@ -1,0 +1,146 @@
+name: Build & Release Neito Desktop App
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish as GitHub Release?"
+        required: true
+        type: boolean
+        default: true
+      release_tag:
+        description: "Release Tag (e.g. v1.0.0)"
+        required: false
+        default: "v1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Portable & Setup Installer (Windows x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Build Dependencies
+        shell: powershell
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+
+      - name: Generate Icon if missing
+        shell: powershell
+        run: |
+          if (-not (Test-Path "assets/icon.ico")) {
+            python -c "from PIL import Image; img = Image.open('assets/mochi_esp32/mascot_mochi_preview.png'); img.save('assets/icon.ico', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+          }
+
+      - name: Compile App with PyInstaller
+        shell: powershell
+        run: |
+          pyinstaller --noconfirm neito.spec
+
+      - name: Package Portable Distribution (.zip)
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist-portable"
+          Compress-Archive -Path "dist\Neito\*" -DestinationPath "dist-portable\Neito-Portable-windows-x64.zip" -CompressionLevel Optimal
+          Get-ChildItem -Path "dist-portable"
+
+      - name: Compile Windows Setup Installer (.exe)
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist-installer"
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (Test-Path $iscc) {
+            & $iscc installer.iss
+          } else {
+            # Fallback path if Inno Setup is in standard Program Files
+            & iscc installer.iss
+          }
+          Get-ChildItem -Path "dist-installer"
+
+      - name: Upload Portable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Neito-Portable-windows-x64
+          path: dist-portable/Neito-Portable-windows-x64.zip
+          retention-days: 30
+
+      - name: Upload Setup Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Neito-Setup-windows-x64
+          path: dist-installer/Neito-Setup-windows-x64.exe
+          retention-days: 30
+
+      - name: Determine Release Tag
+        id: release_info
+        shell: powershell
+        run: |
+          if ($env:GITHUB_REF -like "refs/tags/*") {
+            $tag = $env:GITHUB_REF.Substring(10)
+            echo "tag=$tag" >> $env:GITHUB_OUTPUT
+            echo "create_release=true" >> $env:GITHUB_OUTPUT
+          } elseif ("${{ inputs.publish_release }}" -eq "true") {
+            $tag = "${{ inputs.release_tag }}"
+            if (-not $tag) { $tag = "v1.0.0" }
+            echo "tag=$tag" >> $env:GITHUB_OUTPUT
+            echo "create_release=true" >> $env:GITHUB_OUTPUT
+          } elseif ($env:GITHUB_REF -eq "refs/heads/main") {
+            echo "tag=v1.0.0" >> $env:GITHUB_OUTPUT
+            echo "create_release=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "create_release=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Publish GitHub Release
+        if: steps.release_info.outputs.create_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          name: "Neito Desktop App ${{ steps.release_info.outputs.tag }}"
+          draft: false
+          prerelease: false
+          files: |
+            dist-portable/Neito-Portable-windows-x64.zip
+            dist-installer/Neito-Setup-windows-x64.exe
+          body: |
+            ## 🚀 Neito Desktop Agent - Bản Phát Hành Tự Động (${{ steps.release_info.outputs.tag }})
+
+            Hệ điều hành hỗ trợ: **Windows 10 / Windows 11 (64-bit)**
+
+            ---
+
+            ### 📦 Các bản tải xuống:
+
+            1. **Bản Cài Đặt (Setup Installer)**:
+               * Tệp: `Neito-Setup-windows-x64.exe`
+               * Trình cài đặt tự động tạo Shortcut trên Desktop, Start Menu và Uninstaller.
+
+            2. **Bản Portable (Chạy Ngay Không Cần Cài Đặt)**:
+               * Tệp: `Neito-Portable-windows-x64.zip`
+               * Tải về, giải nén và nhấp đúp vào `Neito.exe` để sử dụng ngay.
+
+            ---
+
+            ### 🌟 Tính năng nổi bật:
+            * **Mascot 60FPS**: Tích hợp firmware The Mochi, 71 biểu cảm OLED và 27 âm thanh WAV gốc.
+            * **Đa dạng giọng nói**: Hỗ trợ 27 preset giọng nói tiếng Việt chất lượng cao.
+            * **Ghép nối App Chronos & Web Controller**: Hỗ trợ đồng bộ điện thoại và điều khiển qua trình duyệt (`/thietlap`).
+            * **Cửa sổ di chuyển tự do**: Tùy chỉnh vị trí và cố định mascot theo ý muốn.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

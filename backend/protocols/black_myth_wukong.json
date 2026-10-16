@@ -1,0 +1,48 @@
+{
+  "id": "black_myth_wukong",
+  "name": "Black Myth Wukong Reflex Protocol",
+  "category": "game",
+  "process_matches": [
+    "b1-win64-shipping.exe"
+  ],
+  "title_keywords": [
+    "black myth wukong"
+  ],
+  "yolo_classes": [
+    "gourd_charges",
+    "focus_points",
+    "boss_hp"
+  ],
+  "yolo_weights": "yolo11n_black_myth_wukong.pt",
+  "system_prompt_addon": "Chế độ phản xạ tốc độ cao cho Black Myth Wukong. Trả lời cực nhanh, ưu tiên chiến thuật và dữ liệu thực chiến.",
+  "knowledge_pack": {
+    "black myth wukong": "Bộ giao thức Black Myth Wukong đã nạp: theo dõi gourd_charges, focus_points, boss_hp ở tốc độ cao.",
+    "chiến thuật": "Ưu tiên quan sát HUD Black Myth Wukong và kích hoạt phản xạ <15ms khi có biến động."
+  },
+  "reflex_rules": [
+    {
+      "id": "rx_black_myth_wukong_guide",
+      "trigger_type": "keyword",
+      "patterns": [
+        "black myth wukong",
+        "hướng dẫn",
+        "mẹo",
+        "combo",
+        "chiến thuật"
+      ],
+      "response": "Giao thức Black Myth Wukong đang kích hoạt! Mắt YOLO11n đang khóa mục tiêu: gourd_charges, focus_points, boss_hp.",
+      "emotion": "happy",
+      "cooldown_sec": 3
+    },
+    {
+      "id": "rx_black_myth_wukong_vision",
+      "trigger_type": "vision",
+      "target_class": "gourd_charges",
+      "min_conf": 0.45,
+      "response": "Phát hiện tín hiệu gourd_charges trong Black Myth Wukong! Chú ý xử lý tình huống ngay!",
+      "emotion": "alert",
+      "cooldown_sec": 18
+    }
+  ],
+  "updated_at": 1792119181
+}

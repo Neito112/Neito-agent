@@ -1,0 +1,52 @@
+{
+  "id": "valorant_tactical",
+  "name": "Valorant / Tactical FPS Protocol",
+  "category": "game",
+  "process_matches": [
+    "valorant-win64-shipping.exe",
+    "valorant.exe",
+    "cs2.exe"
+  ],
+  "title_keywords": [
+    "valorant",
+    "counter-strike"
+  ],
+  "yolo_classes": [
+    "spike_planted_icon",
+    "low_ammo_warning",
+    "low_hp_hud",
+    "minimap_ping",
+    "buy_phase_menu"
+  ],
+  "yolo_weights": "yolo11n_fps.pt",
+  "system_prompt_addon": "Đang trong giao thức FPS chiến thuật (Valorant/CS2). Báo callout cực gọn: thời gian Spike (45s), quản lý kinh tế (Eco/Full Buy) và kiểm soát tâm ngắm.",
+  "knowledge_pack": {
+    "spike_timer": "Spike nổ sau 45s. Gỡ mất 7s (nửa vạch là 3.5s). Tiếng bíp tăng tốc gấp đôi khi còn 10s cuối.",
+    "economy": "Thua 1 round: +1900, thua 2: +2400, thua 3+: +2900. Đảm bảo còn ít nhất 3900 cho round sau để Full Buy."
+  },
+  "reflex_rules": [
+    {
+      "id": "rx_spike_planted",
+      "trigger_type": "vision",
+      "target_class": "spike_planted_icon",
+      "min_conf": 0.45,
+      "response": "Spike đã đặt! Đếm ngược 45 giây, giữ góc hoặc retake theo đội!",
+      "emotion": "alert",
+      "cooldown_sec": 30
+    },
+    {
+      "id": "rx_eco_query",
+      "trigger_type": "keyword",
+      "patterns": [
+        "eco",
+        "mua súng",
+        "tiền",
+        "full buy",
+        "spike"
+      ],
+      "response": "Chuẩn kinh tế: Giữ tối thiểu 3900 Creds cho round kế tiếp để mua Vandal/Phantom + Giáp dày. Spike nổ sau 45s, gỡ mất 7s.",
+      "emotion": "speaking",
+      "cooldown_sec": 5
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+path: D:/ni-oh/backend/datasets/black_myth_wukong
+train: images/train
+val: images/train
+names:
+  0: gourd_charges
+  1: focus_points
+  2: boss_hp

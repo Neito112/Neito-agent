@@ -1,0 +1,18 @@
+# Neito Agent - Runtime Dependencies
+PySide6>=6.6.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+websockets>=12.0
+httpx>=0.27.0
+numpy>=1.26.0
+pillow>=10.2.0
+pydantic>=2.6.0
+PyYAML>=6.0.1
+python-dotenv>=1.0.1
+edge-tts>=6.1.9
+mss>=9.0.1
+psutil>=5.9.8
+qrcode>=7.4.2
+sounddevice>=0.4.6
+SpeechRecognition>=3.10.1
+pyinstaller>=6.4.0

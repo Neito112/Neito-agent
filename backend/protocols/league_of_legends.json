@@ -1,0 +1,43 @@
+{
+  "id": "league_of_legends",
+  "name": "League of Legends / MOBA Macro Protocol",
+  "category": "game",
+  "process_matches": [
+    "league of legends.exe",
+    "leagueclientux.exe",
+    "dota2.exe"
+  ],
+  "title_keywords": [
+    "league of legends",
+    "dota 2",
+    "lmht"
+  ],
+  "yolo_classes": [
+    "minimap_jungler",
+    "dragon_timer",
+    "baron_timer",
+    "low_mana_bar",
+    "player_hp_low"
+  ],
+  "yolo_weights": "yolo11n_moba.pt",
+  "system_prompt_addon": "Đang trong giao thức MOBA (LMHT/Dota 2). Nhắc kiểm soát tầm nhìn, thời gian Rồng/Baron và vị trí rừng đối phương cực nhanh.",
+  "knowledge_pack": {
+    "objectives": "Sâu Hư Không xuất hiện phút 6:00, Rồng đầu 5:00 (hồi sau 5 phút), Sứ Giả 14:00, Baron 20:00.",
+    "wave_management": "Đóng băng lính (Freeze) khi cần giữ khoảng cách 4 lính đánh xa của địch ngoài tầm trụ."
+  },
+  "reflex_rules": [
+    {
+      "id": "rx_moba_timer",
+      "trigger_type": "keyword",
+      "patterns": [
+        "rồng",
+        "baron",
+        "sâu hư không",
+        "thời gian mục tiêu"
+      ],
+      "response": "Mốc mục tiêu: Rồng 5:00 (hồi 5p), Sâu Hư Không 6:00, Sứ Giả 14:00, Baron 20:00. Cắm mắt trước 45 giây!",
+      "emotion": "speaking",
+      "cooldown_sec": 5
+    }
+  ]
+}

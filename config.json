@@ -1,0 +1,80 @@
+{
+  "agent_name": "Neito",
+  "system_persona": "Bạn là Neito, một sinh vật AI sống động trên màn hình desktop. Phong cách: Nhanh - Mạnh - Văn phong tinh gọn, thông minh, sắc bén, trả lời cực kỳ súc tích (1-2 câu ngắn) để đọc/nói realtime khi người dùng đang chơi game hoặc làm việc.",
+  "llm": {
+    "active_provider": "mochi_core",
+    "model_name": "mochi-smart-v4 (Free)",
+    "api_key": "",
+    "base_url": "local:mochi_firmware",
+    "temperature": 0.4,
+    "max_tokens": 350,
+    "providers": {
+      "mochi_core": {
+        "name": "Mochi Core (Firmware Gốc • Free)",
+        "base_url": "local:mochi_firmware",
+        "default_model": "mochi-smart-v4 (Free)"
+      },
+      "ollama": {
+        "name": "Ollama (Local)",
+        "base_url": "http://localhost:11434/v1",
+        "default_model": "qwen2.5:7b"
+      },
+      "lmstudio": {
+        "name": "LM Studio / vLLM (Local)",
+        "base_url": "http://localhost:1234/v1",
+        "default_model": "local-model"
+      },
+      "openai": {
+        "name": "OpenAI",
+        "base_url": "https://api.openai.com/v1",
+        "default_model": "gpt-4o-mini"
+      },
+      "gemini": {
+        "name": "Google Gemini (OpenAI Compat)",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "default_model": "gemini-2.5-flash"
+      },
+      "deepseek": {
+        "name": "DeepSeek",
+        "base_url": "https://api.deepseek.com/v1",
+        "default_model": "deepseek-chat"
+      },
+      "groq": {
+        "name": "Groq (Ultra-Fast LPU)",
+        "base_url": "https://api.groq.com/openai/v1",
+        "default_model": "llama-3.3-70b-versatile"
+      }
+    }
+  },
+  "voice": {
+    "engine": "edge_tts",
+    "voice_preset": "edge_tts:en-US-AvaMultilingualNeural",
+    "omnivoice_url": "http://localhost:8020/v1/audio/speech",
+    "omnivoice_voice": "neito_vi_female",
+    "edge_voice": "vi-VN-HoaiMyNeural",
+    "speed": 1.12,
+    "mic_enabled": false,
+    "speaker_enabled": true,
+    "ear_mode": "auto_vad",
+    "wake_word": "neito",
+    "barge_in": true,
+    "vad_threshold": 0.45
+  },
+  "vision": {
+    "enabled": true,
+    "detector_model": "yolo11n.pt",
+    "trainer_model": "yolov8s-worldv2.pt",
+    "fps_mode": "eco",
+    "confidence_threshold": 0.38,
+    "use_half_precision": true,
+    "capture_active_window_only": true,
+    "auto_reflex_on_detection": true
+  },
+  "mascot": {
+    "scale": 1.0,
+    "opacity": 0.96,
+    "theme_color": "#00f2fe",
+    "always_on_top": true,
+    "gaming_eco_mode": true
+  }
+}

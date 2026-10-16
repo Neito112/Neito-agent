@@ -1,0 +1,9 @@
+path: D:/ni-oh/backend/datasets/game_black_myth_wukong
+train: images/train
+val: images/train
+names:
+  0: health_bar
+  1: minimap_hud
+  2: boss_alert
+  3: objective_timer
+  4: dialog_prompt

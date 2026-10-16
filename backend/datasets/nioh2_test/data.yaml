@@ -1,0 +1,7 @@
+path: D:/ni-oh/backend/datasets/nioh2_test
+train: images/train
+val: images/train
+names:
+  0: ki_bar
+  1: health_bar
+  2: yokai_boss

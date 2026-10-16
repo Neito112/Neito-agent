@@ -1,0 +1,50 @@
+{
+  "id": "game_black_myth_wukong",
+  "name": "Game Black Myth Wukong Reflex Protocol",
+  "category": "game",
+  "process_matches": [
+    "antigravity.exe"
+  ],
+  "title_keywords": [
+    "game black myth wukong"
+  ],
+  "yolo_classes": [
+    "health_bar",
+    "minimap_hud",
+    "boss_alert",
+    "objective_timer",
+    "dialog_prompt"
+  ],
+  "yolo_weights": "yolo11n_game_black_myth_wukong.pt",
+  "system_prompt_addon": "Chế độ phản xạ tốc độ cao cho game black myth wukong. Trả lời cực nhanh, ưu tiên chiến thuật và dữ liệu thực chiến.",
+  "knowledge_pack": {
+    "game black myth wukong": "Bộ giao thức game black myth wukong đã nạp: theo dõi health_bar, minimap_hud, boss_alert ở tốc độ cao.",
+    "chiến thuật": "Ưu tiên quan sát HUD game black myth wukong và kích hoạt phản xạ <15ms khi có biến động."
+  },
+  "reflex_rules": [
+    {
+      "id": "rx_game_black_myth_wukong_guide",
+      "trigger_type": "keyword",
+      "patterns": [
+        "game black myth wukong",
+        "hướng dẫn",
+        "mẹo",
+        "combo",
+        "chiến thuật"
+      ],
+      "response": "Giao thức game black myth wukong đang kích hoạt! Mắt YOLO11n đang khóa mục tiêu: health_bar, minimap_hud, boss_alert.",
+      "emotion": "happy",
+      "cooldown_sec": 3
+    },
+    {
+      "id": "rx_game_black_myth_wukong_vision",
+      "trigger_type": "vision",
+      "target_class": "health_bar",
+      "min_conf": 0.45,
+      "response": "Phát hiện tín hiệu health_bar trong game black myth wukong! Chú ý xử lý tình huống ngay!",
+      "emotion": "alert",
+      "cooldown_sec": 18
+    }
+  ],
+  "updated_at": 1792119980
+}

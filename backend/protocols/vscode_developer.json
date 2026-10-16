@@ -1,0 +1,43 @@
+{
+  "id": "vscode_developer",
+  "name": "Developer IDE & Code Copilot Protocol",
+  "category": "app",
+  "process_matches": [
+    "code.exe",
+    "cursor.exe",
+    "pycharm64.exe",
+    "devenv.exe",
+    "windowsterminal.exe"
+  ],
+  "title_keywords": [
+    "visual studio code",
+    "pycharm",
+    "terminal",
+    ".py",
+    ".js",
+    ".ts",
+    ".rs"
+  ],
+  "yolo_classes": [
+    "terminal_traceback",
+    "syntax_error_squiggly",
+    "build_failed_banner",
+    "debugger_paused"
+  ],
+  "yolo_weights": "yolo11n.pt",
+  "system_prompt_addon": "Đang trong giao thức Lập trình & Kỹ thuật phần mềm. Trả lời trực diện vào giải pháp code, độ phức tạp thuật toán và cách sửa lỗi nhanh nhất.",
+  "knowledge_pack": {
+    "debugging": "Đọc dòng cuối cùng của Traceback trước để xác định loại Exception, sau đó dò ngược lên file thuộc project."
+  },
+  "reflex_rules": [
+    {
+      "id": "rx_code_error",
+      "trigger_type": "vision",
+      "target_class": "terminal_traceback",
+      "min_conf": 0.5,
+      "response": "Phát hiện Traceback lỗi trên màn hình! Cần mình phân tích nguyên nhân gốc ngay không?",
+      "emotion": "thinking",
+      "cooldown_sec": 25
+    }
+  ]
+}

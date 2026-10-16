@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neito</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="mascot-dock" class="interactive-zone">
+    <!-- Speech Bubble (Only visible when speaking, pure concise text) -->
+    <div id="speech-bubble" class="speech-bubble hidden">
+      <div id="bubble-text" class="bubble-content"></div>
+    </div>
+
+    <!-- Cute Living Mascot Orb (Scroll middle wheel to scale, Drag to move) -->
+    <div id="mascot-scale-wrapper">
+      <canvas id="mascot-canvas" width="220" height="220"></canvas>
+    </div>
+
+    <!-- Foot Controls: Only [💬] Chat & [⚙️] Setting right next to it -->
+    <div id="mascot-foot-controls" class="foot-controls">
+      <button id="btn-toggle-chat" class="foot-btn" title="Chat">💬</button>
+      <button id="btn-toggle-settings" class="foot-btn" title="Setting">⚙️</button>
+    </div>
+
+    <!-- Minimal Single-Line Chat Input under feet -->
+    <div id="chat-input-box" class="chat-drawer hidden">
+      <form id="chat-form" autocomplete="off">
+        <input type="text" id="chat-input" placeholder="Nói với Neito..." />
+        <button type="submit" id="btn-send-chat">➤</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Minimal Settings Popover -->
+  <div id="settings-modal" class="settings-modal interactive-zone hidden">
+    <div class="settings-header">
+      <span>⚙️ Neito</span>
+      <button id="btn-close-settings" class="btn-close">✕</button>
+    </div>
+    <div class="settings-body">
+      <select id="cfg-llm-provider">
+        <option value="ollama">Ollama (Local)</option>
+        <option value="openai">OpenAI</option>
+        <option value="gemini">Gemini</option>
+        <option value="deepseek">DeepSeek</option>
+        <option value="groq">Groq</option>
+        <option value="lmstudio">LM Studio</option>
+      </select>
+      <input type="text" id="cfg-llm-model" placeholder="Model (qwen2.5:7b)" />
+      <input type="password" id="cfg-llm-apikey" placeholder="API Key" />
+      <select id="cfg-voice-engine">
+        <option value="omnivoice">OmniVoice</option>
+        <option value="edge_tts">Neural TTS</option>
+      </select>
+      <div class="toggle-row">
+        <label><input type="checkbox" id="cfg-vision-enabled" checked /> 👁️ Mắt</label>
+        <label><input type="checkbox" id="cfg-gaming-eco" checked /> ⚡ Eco</label>
+      </div>
+      <button id="btn-save-settings" class="btn-action">Lưu</button>
+    </div>
+  </div>
+
+  <script src="mascot.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

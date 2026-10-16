@@ -1,0 +1,174 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+html,
+body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: transparent;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: #f8fafc;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#mascot-dock {
+  position: fixed;
+  right: 36px;
+  bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 500;
+}
+
+.speech-bubble {
+  max-width: 240px;
+  background: rgba(11, 17, 30, 0.92);
+  border: 1.5px solid #00e5ff;
+  border-radius: 13px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+#mascot-canvas {
+  cursor: grab;
+}
+
+#mascot-canvas:active {
+  cursor: grabbing;
+}
+
+.foot-controls {
+  display: flex;
+  gap: 4px;
+  background: rgba(11, 17, 30, 0.85);
+  border: 1px solid rgba(0, 229, 255, 0.38);
+  padding: 3px 6px;
+  border-radius: 999px;
+}
+
+.foot-btn {
+  background: transparent;
+  border: none;
+  color: #f8fafc;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.foot-btn:hover {
+  background: rgba(0, 229, 255, 0.22);
+}
+
+.chat-drawer {
+  margin-top: 6px;
+  background: rgba(11, 17, 30, 0.94);
+  border: 1px solid #00e5ff;
+  border-radius: 11px;
+  padding: 4px 6px;
+}
+
+#chat-form {
+  display: flex;
+  gap: 4px;
+}
+
+#chat-input {
+  width: 185px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  padding: 5px 6px;
+  font-size: 12.5px;
+  outline: none;
+}
+
+#btn-send-chat {
+  background: #00e5ff;
+  border: none;
+  color: #04101e;
+  font-weight: 800;
+  padding: 4px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.settings-modal {
+  position: fixed;
+  right: 260px;
+  bottom: 40px;
+  width: 260px;
+  background: rgba(11, 16, 28, 0.95);
+  border: 1.5px solid rgba(0, 229, 255, 0.45);
+  border-radius: 14px;
+  padding: 12px;
+  z-index: 900;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #00e5ff;
+  font-weight: 800;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.btn-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+input[type="text"],
+input[type="password"],
+select {
+  background: rgba(20, 29, 49, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  padding: 6px 8px;
+  border-radius: 7px;
+  font-size: 12px;
+  outline: none;
+}
+
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #e2e8f0;
+  padding: 2px 0;
+}
+
+.btn-action {
+  background: #00e5ff;
+  border: none;
+  color: #04101e;
+  font-weight: 700;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}

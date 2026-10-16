@@ -1,0 +1,50 @@
+{
+  "id": "chrome",
+  "name": "Chrome Reflex Protocol",
+  "category": "game",
+  "process_matches": [
+    "chrome.exe"
+  ],
+  "title_keywords": [
+    "chrome"
+  ],
+  "yolo_classes": [
+    "health_bar",
+    "minimap_hud",
+    "boss_alert",
+    "objective_timer",
+    "dialog_prompt"
+  ],
+  "yolo_weights": "yolo11n_chrome.pt",
+  "system_prompt_addon": "Chế độ phản xạ tốc độ cao cho Chrome. Trả lời cực nhanh, ưu tiên chiến thuật và dữ liệu thực chiến.",
+  "knowledge_pack": {
+    "chrome": "Bộ giao thức Chrome đã nạp: theo dõi health_bar, minimap_hud, boss_alert ở tốc độ cao.",
+    "chiến thuật": "Ưu tiên quan sát HUD Chrome và kích hoạt phản xạ <15ms khi có biến động."
+  },
+  "reflex_rules": [
+    {
+      "id": "rx_chrome_guide",
+      "trigger_type": "keyword",
+      "patterns": [
+        "chrome",
+        "hướng dẫn",
+        "mẹo",
+        "combo",
+        "chiến thuật"
+      ],
+      "response": "Giao thức Chrome đang kích hoạt! Mắt YOLO11n đang khóa mục tiêu: health_bar, minimap_hud, boss_alert.",
+      "emotion": "happy",
+      "cooldown_sec": 3
+    },
+    {
+      "id": "rx_chrome_vision",
+      "trigger_type": "vision",
+      "target_class": "health_bar",
+      "min_conf": 0.45,
+      "response": "Phát hiện tín hiệu health_bar trong Chrome! Chú ý xử lý tình huống ngay!",
+      "emotion": "alert",
+      "cooldown_sec": 18
+    }
+  ],
+  "updated_at": 1792142343
+}

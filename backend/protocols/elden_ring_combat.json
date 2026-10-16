@@ -1,0 +1,79 @@
+{
+  "id": "elden_ring_combat",
+  "name": "Elden Ring / Souls-like Combat Protocol",
+  "category": "game",
+  "process_matches": [
+    "eldenring.exe",
+    "nightreign.exe",
+    "sekiro.exe",
+    "darksoulsiii.exe",
+    "nioh.exe",
+    "nioh2.exe"
+  ],
+  "title_keywords": [
+    "elden ring",
+    "sekiro",
+    "nioh",
+    "dark souls",
+    "boss"
+  ],
+  "yolo_classes": [
+    "player_hp_low",
+    "stamina_depleted",
+    "boss_health_bar",
+    "you_died_banner",
+    "flask_icon"
+  ],
+  "yolo_weights": "yolo11n_souls.pt",
+  "system_prompt_addon": "Đang trong giao thức chiến đấu Souls-like (Elden Ring / Nioh). Cảnh báo máu/thể lực cực ngắn (dưới 12 từ), gợi ý nhịp né đòn (dodge roll / Ki Pulse) và điểm yếu Boss tức thì.",
+  "knowledge_pack": {
+    "malenia": "Yếu với Frostbite & Bleed. Khi bay lên chuẩn bị Waterfowl Dance: chạy xa đợt 1, lăn vào trong đợt 2, lăn ngược đợt 3.",
+    "radahn": "Ưu tiên khiên kháng Holy/Magic ở Phase 2, giữ khoảng cách sát chân để tránh chuỗi chém quang năng.",
+    "nioh_ki": "Nhớ bấm R1 đúng nhịp Ki Pulse để hồi thể lực và thanh tẩy Yokai Realm ngay lập tức!"
+  },
+  "reflex_rules": [
+    {
+      "id": "rx_hp_critical",
+      "trigger_type": "vision",
+      "target_class": "player_hp_low",
+      "min_conf": 0.45,
+      "response": "Máu báo động đỏ! Lùi nhịp và hồi bình ngay!",
+      "emotion": "alert",
+      "cooldown_sec": 15
+    },
+    {
+      "id": "rx_boss_engage",
+      "trigger_type": "vision",
+      "target_class": "boss_health_bar",
+      "min_conf": 0.5,
+      "response": "Phát hiện thanh máu Boss! Giữ thể lực, quan sát nhịp ra đòn đầu tiên.",
+      "emotion": "alert",
+      "cooldown_sec": 35
+    },
+    {
+      "id": "rx_malenia_tip",
+      "trigger_type": "keyword",
+      "patterns": [
+        "malenia",
+        "waterfowl",
+        "múa kiếm"
+      ],
+      "response": "Khắc chế Malenia: Dùng băng/chảy máu. Khi cô ta nhảy lên không trung: chạy lùi nhịp 1, roll xuyên qua nhịp 2!",
+      "emotion": "speaking",
+      "cooldown_sec": 5
+    },
+    {
+      "id": "rx_nioh_tip",
+      "trigger_type": "keyword",
+      "patterns": [
+        "nioh",
+        "ki pulse",
+        "hồi ki",
+        "burst counter"
+      ],
+      "response": "Mẹo Nioh: Luôn Ki Pulse sau mỗi chuỗi đòn và canh đòn đỏ để Burst Counter phá thanh Ki của Yokai!",
+      "emotion": "happy",
+      "cooldown_sec": 5
+    }
+  ]
+}
