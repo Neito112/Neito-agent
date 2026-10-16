@@ -20,6 +20,7 @@ from backend.core.window_watcher import window_watcher
 from backend.vision.eye_engine import eye_engine
 from backend.voice.omnivoice_tts import VOICE_CATALOG, omnivoice_engine
 from backend.voice.xiaozhi_ear import XiaozhiEarSession
+from backend.core.updater import update_engine, APP_VERSION
 
 app = FastAPI(
     title="Neito-Agent Core Brain (The Mochi Firmware v4.3.2 + Xiaozhi v2 + Chronos Phone Bridge)",
@@ -395,6 +396,34 @@ async def api_mochi_mobile_chat(payload: Dict[str, Any] = Body(...)):
     }
     await mochi_core_brain.broadcast_event(pkt)
     return {"ok": True, "reply": reply}
+
+
+@app.get("/api/updater/check")
+async def api_check_updater():
+    loop = asyncio.get_event_loop()
+    info = await loop.run_in_executor(None, update_engine.check_for_updates)
+    return info
+
+
+@app.get("/api/updater/progress")
+async def api_get_updater_progress():
+    return update_engine.download_progress
+
+
+@app.post("/api/updater/download")
+async def api_start_updater_download(payload: Dict[str, Any] = Body(...)):
+    url = payload.get("url")
+    if not url:
+        return {"ok": False, "error": "Missing download URL"}
+    update_engine.start_download_thread(url)
+    return {"ok": True, "message": "Download started"}
+
+
+@app.post("/api/updater/apply")
+async def api_apply_updater(payload: Dict[str, Any] = Body(default={})):
+    file_path = payload.get("file_path")
+    res = update_engine.apply_update(Path(file_path) if file_path else None)
+    return res
 
 
 @app.websocket("/ws/xiaozhi")

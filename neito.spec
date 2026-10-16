@@ -47,6 +47,7 @@ hiddenimports = [
     'backend.vision.eye_engine',
     'backend.voice.omnivoice_tts',
     'backend.voice.xiaozhi_ear',
+    'backend.core.updater',
 ]
 
 icon_path = 'assets/icon.ico' if os.path.exists('assets/icon.ico') else None

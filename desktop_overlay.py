@@ -50,9 +50,11 @@ from PySide6.QtWidgets import (
     QMenu,
     QSpinBox,
     QStackedWidget,
+    QProgressBar,
 )
 import numpy as np
 from backend.vision.mochi_esp32_client import MochiFacePlayer
+from backend.core.updater import APP_VERSION
 
 try:
     from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
@@ -1348,6 +1350,64 @@ class MinimalSettingsPopover(DraggableFramelessWidget):
         action_row.addWidget(self.save_btn, 1)
         layout.addLayout(action_row)
 
+        # 7. Auto-Update Row & Progress Box
+        update_frame = QFrame()
+        update_frame.setStyleSheet(
+            "background-color: rgba(15, 23, 42, 160); border: 1px solid rgba(56, 189, 248, 0.28); border-radius: 9px; padding: 2px;"
+        )
+        update_vlay = QVBoxLayout(update_frame)
+        update_vlay.setContentsMargins(6, 4, 6, 4)
+        update_vlay.setSpacing(4)
+
+        up_row = QHBoxLayout()
+        self.lbl_app_ver = QLabel(f"📦 Neito v{APP_VERSION}")
+        self.lbl_app_ver.setStyleSheet("color: #94a3b8; font-size: 10.5px; font-weight: 700;")
+
+        self.btn_check_update = QPushButton("🔄 Kiểm tra")
+        self.btn_check_update.setStyleSheet(
+            "QPushButton { background-color: rgba(56, 189, 248, 0.16); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 6px; padding: 2px 7px; font-size: 10px; font-weight: 700; } "
+            "QPushButton:hover { background-color: #38bdf8; color: #020617; }"
+        )
+        self.btn_check_update.clicked.connect(lambda: self._check_for_updates(silent=False))
+        up_row.addWidget(self.lbl_app_ver)
+        up_row.addStretch()
+        up_row.addWidget(self.btn_check_update)
+        update_vlay.addLayout(up_row)
+
+        self.update_info_box = QFrame()
+        self.update_info_box.setStyleSheet("background-color: rgba(30, 41, 59, 180); border-radius: 6px;")
+        info_lay = QVBoxLayout(self.update_info_box)
+        info_lay.setContentsMargins(4, 4, 4, 4)
+        info_lay.setSpacing(4)
+
+        self.lbl_update_status = QLabel("")
+        self.lbl_update_status.setWordWrap(True)
+        self.lbl_update_status.setStyleSheet("color: #38bdf8; font-size: 10.5px; font-weight: 600;")
+
+        self.update_progress_bar = QProgressBar()
+        self.update_progress_bar.setFixedHeight(6)
+        self.update_progress_bar.setStyleSheet(
+            "QProgressBar { background-color: rgba(15, 23, 42, 220); border-radius: 3px; border: none; } "
+            "QProgressBar::chunk { background-color: #00f5d4; border-radius: 3px; }"
+        )
+        self.update_progress_bar.hide()
+
+        self.btn_do_update = QPushButton("⚡ Cập Nhật Ngay")
+        self.btn_do_update.setStyleSheet(
+            "QPushButton { background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); color: #020617; border: none; border-radius: 6px; padding: 5px 8px; font-size: 10.5px; font-weight: 800; } "
+            "QPushButton:hover { background: #00f5d4; }"
+        )
+        self.btn_do_update.clicked.connect(self._apply_current_update)
+        self.btn_do_update.hide()
+
+        info_lay.addWidget(self.lbl_update_status)
+        info_lay.addWidget(self.update_progress_bar)
+        info_lay.addWidget(self.btn_do_update)
+        self.update_info_box.hide()
+        update_vlay.addWidget(self.update_info_box)
+
+        layout.addWidget(update_frame)
+
         # Initialize default provider model list
         self._on_provider_changed()
 
@@ -1496,6 +1556,93 @@ class MinimalSettingsPopover(DraggableFramelessWidget):
         except Exception:
             self.save_btn.setText("Lỗi")
 
+    def _check_for_updates(self, silent: bool = False):
+        self.btn_check_update.setEnabled(False)
+        self.btn_check_update.setText("⏳ Đang kiểm...")
+        def worker():
+            try:
+                r = httpx.get(f"{BACKEND_HTTP}/api/updater/check", timeout=6.0)
+                if r.status_code == 200:
+                    data = r.json()
+                else:
+                    data = {"ok": False, "error": f"HTTP {r.status_code}"}
+            except Exception as e:
+                data = {"ok": False, "error": str(e)}
+            QTimer.singleShot(0, lambda: self._handle_update_ui(data, silent))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _handle_update_ui(self, data: dict, silent: bool = False):
+        self.btn_check_update.setEnabled(True)
+        self.btn_check_update.setText("🔄 Kiểm tra")
+        if data.get("has_update"):
+            latest_v = data.get("latest_version", "")
+            self.lbl_app_ver.setText(f"📦 v{APP_VERSION} ➔ 🎉 v{latest_v}")
+            self.lbl_app_ver.setStyleSheet("color: #00f5d4; font-size: 10.5px; font-weight: 800;")
+            self.lbl_update_status.setText(f"Có bản v{latest_v} mới! ({data.get('download_kind', 'bản mới')})")
+            self.btn_do_update.setText(f"⚡ Cập Nhật v{latest_v}")
+            self.btn_do_update.show()
+            self._target_download_url = data.get("download_url")
+            self.update_info_box.show()
+            self.adjustSize()
+            p = self.parent()
+            if silent and p and hasattr(p, "_show_speech_bubble"):
+                p._show_speech_bubble(f"🎉 Đã có bản Neito v{latest_v} mới! Bấm Cài đặt để cập nhật nhé!")
+        else:
+            if not silent:
+                if data.get("ok"):
+                    self.lbl_update_status.setText("✅ Bạn đang dùng phiên bản mới nhất!")
+                else:
+                    self.lbl_update_status.setText(f"⚠️ {data.get('error', 'Không thể kết nối máy chủ cập nhật.')}")
+                self.btn_do_update.hide()
+                self.update_info_box.show()
+                self.adjustSize()
+
+    def _apply_current_update(self):
+        url = getattr(self, "_target_download_url", None)
+        if not url:
+            return
+        self.btn_do_update.setEnabled(False)
+        self.btn_do_update.setText("⏳ Đang tải...")
+        self.update_progress_bar.setValue(5)
+        self.update_progress_bar.show()
+
+        try:
+            httpx.post(f"{BACKEND_HTTP}/api/updater/download", json={"url": url}, timeout=3.0)
+        except Exception:
+            pass
+
+        self._update_poll_timer = QTimer(self)
+        def poll():
+            try:
+                r = httpx.get(f"{BACKEND_HTTP}/api/updater/progress", timeout=1.5)
+                if r.status_code == 200:
+                    st = r.json()
+                    status = st.get("status")
+                    pct = st.get("percent", 0)
+                    self.update_progress_bar.setValue(pct)
+                    self.lbl_update_status.setText(f"Đang tải bản cập nhật: {pct}%...")
+                    if status == "completed":
+                        self._update_poll_timer.stop()
+                        self.lbl_update_status.setText("✅ Tải xong! Đang áp dụng...")
+                        self.btn_do_update.setText("Khởi động lại...")
+                        QTimer.singleShot(600, self._trigger_apply)
+                    elif status == "error":
+                        self._update_poll_timer.stop()
+                        self.lbl_update_status.setText(f"❌ Lỗi: {st.get('error')}")
+                        self.btn_do_update.setEnabled(True)
+                        self.btn_do_update.setText("Thử lại")
+            except Exception:
+                pass
+
+        self._update_poll_timer.timeout.connect(poll)
+        self._update_poll_timer.start(500)
+
+    def _trigger_apply(self):
+        try:
+            httpx.post(f"{BACKEND_HTTP}/api/updater/apply", json={}, timeout=2.0)
+        except Exception:
+            pass
+
     def _quit_app(self):
         p = self.parent()
         if p and hasattr(p, "quit_application"):
@@ -1554,6 +1701,7 @@ class NeitoDesktopOverlay(QWidget):
         self._setup_system_tray()
         self._start_ws_thread()
         self._start_mic_listener_thread()
+        QTimer.singleShot(5000, lambda: self.settings_popover._check_for_updates(silent=True))
 
     def _on_settings_saved(self, patch: Dict[str, Any]):
         v = patch.get("voice", {})
