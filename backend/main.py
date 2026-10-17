@@ -613,7 +613,28 @@ async def xiaozhi_websocket_endpoint(ws: WebSocket):
     # 2. Trigger Mochi Firmware Boot Intro (`gif_intro` + `moshi.wav`)
     await ws.send_json(mochi_core_brain.build_boot_intro_packet())
 
+    async def _auto_synthesize_unknown_app(proc_name: str, win_title: str):
+        try:
+            topic_label = win_title.strip() or proc_name.replace(".exe", "")
+            synth_res = await brain_router.synthesize_protocol_with_llm_and_tools(
+                topic_or_app=topic_label,
+                process_name=proc_name,
+            )
+            new_proto = synth_res.get("protocol")
+            if new_proto and not stop_event.is_set():
+                await ws.send_json(
+                    {
+                        "type": "protocol_switched",
+                        "window": {"process_name": proc_name, "window_title": win_title},
+                        "protocol": new_proto,
+                        "auto_synthesized": True,
+                    }
+                )
+        except Exception:
+            pass
+
     async def autonomous_perception_loop():
+        unknown_proc_streak: Dict[str, int] = {}
         while not stop_event.is_set():
             try:
                 await asyncio.sleep(1.0)
@@ -630,6 +651,18 @@ async def xiaozhi_websocket_endpoint(ws: WebSocket):
                             "protocol": current_proto,
                         }
                     )
+
+                # Auto-create a new Protocol Cartridge if user is running an unrecognized app/game for >= 3s
+                if protocol_engine.should_auto_synthesize_for_window(
+                    win_now.process_name, win_now.window_title
+                ):
+                    p_key = win_now.process_name.lower().strip()
+                    unknown_proc_streak[p_key] = unknown_proc_streak.get(p_key, 0) + 1
+                    if unknown_proc_streak[p_key] >= 3:
+                        protocol_engine.mark_process_synthesizing(p_key)
+                        asyncio.create_task(
+                            _auto_synthesize_unknown_app(win_now.process_name, win_now.window_title)
+                        )
 
                 # Mochi Firmware `gifTask` autonomous expression cycling when idle
                 if ear.state == "IDLE":

@@ -371,6 +371,13 @@ class AutonomousBrainRouter:
         else:
             llm_generated["id"] = proto_id
             llm_generated.setdefault("reflex_rules", [])
+            proc_matches = llm_generated.get("process_matches")
+            if not isinstance(proc_matches, list):
+                proc_matches = []
+            if inferred_proc and inferred_proc != "desktop":
+                if not any(p.lower() == inferred_proc.lower() for p in proc_matches):
+                    proc_matches.insert(0, inferred_proc.lower())
+            llm_generated["process_matches"] = proc_matches
             if custom_classes:
                 llm_generated["yolo_classes"] = custom_classes
 

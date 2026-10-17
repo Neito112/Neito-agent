@@ -199,11 +199,56 @@ class ReflexProtocolEngine:
     - Allows LLM + Tools + YOLO-World to synthesize new permanent protocols at runtime.
     """
 
+    IGNORED_SYSTEM_PROCS = {
+        "",
+        "desktop",
+        "unknown",
+        "idle",
+        "explorer.exe",
+        "dwm.exe",
+        "searchhost.exe",
+        "searchapp.exe",
+        "shellexperiencehost.exe",
+        "startmenuexperiencehost.exe",
+        "applicationframehost.exe",
+        "taskmgr.exe",
+        "cmd.exe",
+        "powershell.exe",
+        "pwsh.exe",
+        "conhost.exe",
+        "windowsterminal.exe",
+        "openconsole.exe",
+        "python.exe",
+        "pythonw.exe",
+        "neito.exe",
+        "lockapp.exe",
+        "textinputhost.exe",
+        "systemsettings.exe",
+        "svchost.exe",
+        "csrss.exe",
+        "sihost.exe",
+        "ctfmon.exe",
+        "dllhost.exe",
+        "smartscreen.exe",
+        "consent.exe",
+        "snippingtool.exe",
+        "screenclippinghost.exe",
+        "chrome.exe",
+        "msedge.exe",
+        "firefox.exe",
+        "brave.exe",
+        "opera.exe",
+        "browser.exe",
+        "msedgewebview2.exe",
+        "antigravity.exe",
+    }
+
     def __init__(self):
         self.protocols: Dict[str, Dict[str, Any]] = {}
         self.active_protocol_id: str = "global_default"
         self.locked_protocol_id: Optional[str] = None  # If user pins a protocol manually
         self._cooldown_tracker: Dict[str, float] = {}
+        self._auto_synthesized_procs: set[str] = set()
         self._ensure_defaults()
         self.reload_all()
 
@@ -272,6 +317,40 @@ class ReflexProtocolEngine:
         changed = matched_id != self.active_protocol_id
         self.active_protocol_id = matched_id
         return changed, self.get_active_protocol()
+
+    def should_auto_synthesize_for_window(self, process_name: str, window_title: str) -> bool:
+        """
+        Returns True if the foreground window belongs to a non-system application or game
+        that does NOT yet have a dedicated Protocol Cartridge in `self.protocols`.
+        """
+        if self.locked_protocol_id:
+            return False
+
+        proc_lower = (process_name or "").lower().strip()
+        title_clean = (window_title or "").strip()
+
+        if not proc_lower or not proc_lower.endswith(".exe"):
+            return False
+        if proc_lower in self.IGNORED_SYSTEM_PROCS or proc_lower in self._auto_synthesized_procs:
+            return False
+        if len(title_clean) < 2:
+            return False
+
+        for pid, proto in self.protocols.items():
+            proc_list = [p.lower() for p in proto.get("process_matches", [])]
+            if any(p == proc_lower or (p and p in proc_lower) for p in proc_list):
+                return False
+            if pid != "global_default":
+                kw_list = [k.lower() for k in proto.get("title_keywords", [])]
+                if any(k and k in title_clean.lower() for k in kw_list):
+                    return False
+
+        return True
+
+    def mark_process_synthesizing(self, process_name: str) -> None:
+        proc_lower = (process_name or "").lower().strip()
+        if proc_lower:
+            self._auto_synthesized_procs.add(proc_lower)
 
     def evaluate_text_reflex(self, user_text: str) -> Optional[Dict[str, Any]]:
         """
