@@ -1,12 +1,13 @@
 {
   "id": "black_myth_wukong",
-  "name": "Black Myth Wukong Reflex Protocol",
+  "name": "Black Myth Wukong",
   "category": "game",
   "process_matches": [
     "b1-win64-shipping.exe"
   ],
   "title_keywords": [
-    "black myth wukong"
+    "black myth",
+    "wukong"
   ],
   "yolo_classes": [
     "gourd_charges",
@@ -14,34 +15,32 @@
     "boss_hp"
   ],
   "yolo_weights": "yolo11n_black_myth_wukong.pt",
-  "system_prompt_addon": "Chế độ phản xạ tốc độ cao cho Black Myth Wukong. Trả lời cực nhanh, ưu tiên chiến thuật và dữ liệu thực chiến.",
+  "system_prompt_addon": "Bạn đang đồng hành cùng người chơi game Black Myth: Wukong. Gợi ý nhịp combo gậy, phép Định Thân, Hóa Thân và mẹo né đòn cực ngắn gọn, tự nhiên.",
   "knowledge_pack": {
-    "black myth wukong": "Bộ giao thức Black Myth Wukong đã nạp: theo dõi gourd_charges, focus_points, boss_hp ở tốc độ cao.",
-    "chiến thuật": "Ưu tiên quan sát HUD Black Myth Wukong và kích hoạt phản xạ <15ms khi có biến động."
+    "combo": "Tích điểm Côn Thế bằng đòn đánh nhẹ, chuyển thế phách côn gây choáng Boss tức thì.",
+    "phep_thuat": "Dùng Định Thân Thuật khi Boss vừa bắt đầu chuỗi đòn nặng để ngắt nhịp."
   },
   "reflex_rules": [
     {
-      "id": "rx_black_myth_wukong_guide",
+      "id": "rx_wukong_tip",
       "trigger_type": "keyword",
       "patterns": [
-        "black myth wukong",
-        "hướng dẫn",
-        "mẹo",
         "combo",
-        "chiến thuật"
+        "mẹo ngộ không",
+        "định thân"
       ],
-      "response": "Giao thức Black Myth Wukong đang kích hoạt! Mắt YOLO11n đang khóa mục tiêu: gourd_charges, focus_points, boss_hp.",
+      "response": "Mẹo combo: Tích 3 điểm Côn Thế rồi chuyển thế Phách Côn dập mạnh để làm choáng Boss nha!",
       "emotion": "happy",
-      "cooldown_sec": 3
+      "cooldown_sec": 6
     },
     {
-      "id": "rx_black_myth_wukong_vision",
+      "id": "rx_wukong_gourd",
       "trigger_type": "vision",
       "target_class": "gourd_charges",
-      "min_conf": 0.45,
-      "response": "Phát hiện tín hiệu gourd_charges trong Black Myth Wukong! Chú ý xử lý tình huống ngay!",
+      "min_conf": 0.55,
+      "response": "Hồ lô sắp cạn rồi kìa bạn, cẩn thận giữ khoảng cách để hồi phục nhé!",
       "emotion": "alert",
-      "cooldown_sec": 18
+      "cooldown_sec": 25
     }
   ],
   "updated_at": 1792119181

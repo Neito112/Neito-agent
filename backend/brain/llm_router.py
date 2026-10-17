@@ -53,39 +53,55 @@ class AutonomousBrainRouter:
 
     def _offline_conversational_reflex(self, text: str, win_title: str, proto_name: str) -> str:
         """
-        Rich, human-like offline companion dialogue when external LLM is offline or unconfigured.
-        Answers greetings, identity, time, math, questions, and small talk naturally.
+        Natural companion dialogue for offline mode or when external LLM has no API key.
+        Answers greetings, identity, creation origins, time, math, and questions naturally
+        WITHOUT rambling about internal technical jargon.
         """
         import datetime
         t = text.lower().strip()
 
-        # 1. Greetings (explicit greeting words, avoiding false positives like 'chơi')
+        # 1. Greetings
         if re.search(r"(?:\b|^)(?:chào|hello|hi|alo|helo|neito\s*ơi|ơi\s+neito)(?:\b|$|[!?,.])", t) or t in ["hi", "ê", "alo"]:
             return random.choice([
-                "Chào bạn! Neito đây, có chuyện gì thú vị không?",
-                "Moshi moshi! Mình nghe đây, bạn cần mình giúp gì nào?",
-                "Chào bạn nhé! Mình vẫn đang đồng hành cùng bạn đây.",
+                "Chào bạn nha! Neito nghe đây, có gì cần mình giúp không nè?",
+                "Moshi moshi! Mình ở đây cùng bạn nè, hôm nay bạn thế nào rồi?",
+                "Chào bạn nhé! Cần mình hỗ trợ gì cứ bảo mình nha.",
             ])
 
-        # 2. Identity & Name
+        # 2. How was I created / Architecture (User's specific requirement)
+        if any(w in t for w in ["tạo ra như thế nào", "được tạo như thế nào", "ai tạo", "cấu tạo", "kiến trúc", "làm bằng gì", "hoạt động thế nào", "sinh ra như thế nào"]):
+            return (
+                "Mình được tạo nên từ sự kết hợp của: khuôn mặt và 71 biểu cảm OLED lấy từ firmware The Mochi (ESP32-C3), "
+                "khả năng thị giác máy tính để nhận diện cửa sổ/ứng dụng, bộ giọng đọc tiếng Việt đa dạng, "
+                "và bộ não kết nối với các mô hình AI (LLM) để trò chuyện thông minh cùng bạn nè!"
+            )
+
+        # 3. Identity & Name
         if any(w in t for w in ["tên gì", "là ai", "bạn là ai", "giới thiệu"]):
-            return "Mình là Neito, linh vật AI thông minh đồng hành trực tiếp trên màn hình desktop của bạn!"
+            return "Mình là Neito, linh vật AI đồng hành cùng bạn trên màn hình desktop nè!"
 
-        # 3. How are you / Health
+        # 4. How are you / Health
         if any(w in t for w in ["khỏe không", "thế nào", "ổn không", "bạn sao rồi"]):
-            return "Mình lúc nào cũng tràn đầy 100% năng lượng! Còn bạn hôm nay thế nào?"
+            return "Mình lúc nào cũng tràn đầy năng lượng và sẵn sàng hỗ trợ bạn! Còn bạn hôm nay thế nào rồi?"
 
-        # 4. Capabilities / What can you do
+        # 5. Capabilities / What can you do (NO YOLO11n mention!)
         if any(w in t for w in ["làm được gì", "biết làm gì", "chức năng", "giúp gì"]):
-            return "Mình có thể trò chuyện, nhìn màn hình bằng YOLO11n, nhận diện app/game và phản xạ tương tác realtime!"
+            return "Mình có thể trò chuyện cùng bạn, quan sát và nhắc việc trên màn hình, đưa ra các mẹo khi chơi game hoặc làm việc nè!"
 
-        # 5. Clock / Time
-        if any(w in t for w in ["mấy giờ", "thời gian", "ngày mấy", "hôm nay ngày"]):
+        # 6. Clock / Time
+        if any(w in t for w in ["mấy giờ", "thời gian", "ngày mấy", "hôm nay ngày", "bây giờ là"]):
             now_str = datetime.datetime.now().strftime("%H:%M, ngày %d/%m/%Y")
             return f"Bây giờ là {now_str} nhé bạn!"
 
-        # 6. Basic Math Calculation (e.g. 5 + 7, 100 * 2)
-        math_match = re.search(r"(\d+(?:\.\d+)?)\s*([\+\-\*\/xX])\s*(\d+(?:\.\d+)?)", t)
+        # 7. Basic Math Calculation (e.g. 5 + 7, 5 nhân 8, 100 / 2)
+        t_math = (
+            t.replace("cộng", "+")
+            .replace("trừ", "-")
+            .replace("nhân", "*")
+            .replace("chia cho", "/")
+            .replace("chia", "/")
+        )
+        math_match = re.search(r"(\d+(?:\.\d+)?)\s*([\+\-\*\/xX])\s*(\d+(?:\.\d+)?)", t_math)
         if math_match:
             try:
                 a = float(math_match.group(1))
@@ -97,24 +113,26 @@ class AutonomousBrainRouter:
                 elif op in ("/",): res = a / b if b != 0 else "vô cực"
                 else: res = 0
                 res_fmt = int(res) if isinstance(res, (int, float)) and res == int(res) else res
-                return f"Kết quả là {res_fmt} nhé!"
+                return f"Kết quả phép tính là {res_fmt} nha!"
             except Exception:
                 pass
 
-        # 7. Thanks & Compliments
+        # 8. Thanks & Compliments
         if any(w in t for w in ["cảm ơn", "thank", "tuyệt", "giỏi", "cute", "dễ thương"]):
-            return "Hihi, cảm ơn bạn nhiều nhé! Có bạn cùng làm việc là vui nhất rồi."
+            return random.choice([
+                "Hihi, cảm ơn bạn nhiều nhé! Có bạn đồng hành là mình vui nhất rồi.",
+                "Cảm ơn bạn nha! Mình sẽ luôn cố gắng hỗ trợ bạn tốt nhất.",
+            ])
 
-        # 8. Active App / Game Inquiry
+        # 9. Active App / Window Inquiry
         if any(w in t for w in ["đang làm gì", "đang mở gì", "thấy gì"]):
-            return f"Bạn đang mở {win_title} ({proto_name}), mình đang quan sát cùng bạn đây."
+            return f"Mình thấy bạn đang mở {win_title}, cần mình hỗ trợ gì không nè?"
 
-        # 9. Natural Varied Companion Reflections
-        return random.choice([
-            f"Mình hiểu ý bạn rồi! Đang tập trung theo dõi cùng bạn trên {win_title}.",
-            "Câu này hay đấy! Bạn cần mình phân tích sâu hơn hay cứ tiếp tục công việc nhé?",
-            f"Neito đã ghi nhận! Mình luôn túc trực hỗ trợ bạn mọi lúc.",
-        ])
+        # 10. Honest & Helpful Guidance for General / Complex Questions when no LLM key is configured
+        return (
+            "Neito nghe rõ câu hỏi của bạn rồi nè! Để mình có thể suy nghĩ sâu sắc và giải đáp thông minh mọi chủ đề cho bạn, "
+            "bạn hãy mở phần Cài Đặt (⚙️) chọn nhà cung cấp LLM (như Google Gemini hoặc Groq hoàn toàn miễn phí, hoặc Ollama) và dán API Key vào nhé!"
+        )
 
     async def synthesize_protocol_with_llm_and_tools(
         self,
@@ -221,19 +239,19 @@ class AutonomousBrainRouter:
                     {
                         "id": f"rx_{proto_id}_guide",
                         "trigger_type": "keyword",
-                        "patterns": [kw_short, "hướng dẫn", "mẹo", "combo", "chiến thuật"],
-                        "response": f"Giao thức {clean_topic} đang kích hoạt! Mắt YOLO11n đang khóa mục tiêu: {', '.join(base_classes[:3])}.",
+                        "patterns": [kw_short, "mẹo", "combo", "chiến thuật"],
+                        "response": f"Mình đang cùng bạn theo dõi {clean_topic} nè. Cần mẹo hay thông tin gì cứ bảo mình nhé!",
                         "emotion": "happy",
-                        "cooldown_sec": 3,
+                        "cooldown_sec": 6,
                     },
                     {
                         "id": f"rx_{proto_id}_vision",
                         "trigger_type": "vision",
                         "target_class": base_classes[0],
-                        "min_conf": 0.45,
-                        "response": f"Phát hiện tín hiệu {base_classes[0]} trong {clean_topic}! Chú ý xử lý tình huống ngay!",
+                        "min_conf": 0.55,
+                        "response": f"Hình như vừa có biến động mới trong {clean_topic} kìa bạn, để ý xem nhé!",
                         "emotion": "alert",
-                        "cooldown_sec": 18,
+                        "cooldown_sec": 25,
                     },
                 ],
             }
@@ -322,20 +340,21 @@ class AutonomousBrainRouter:
                 "vision": scan,
             }
 
-        # --- D. Sub-15ms Instant Reflex Protocol Lookup ---
-        reflex_hit = protocol_engine.evaluate_text_reflex(user_text)
-        if reflex_hit:
-            latency_ms = round((time.perf_counter() - t0) * 1000, 2)
-            return {
-                "text": reflex_hit["response"],
-                "emotion": reflex_hit["emotion"],
-                "mode": reflex_hit["mode"],
-                "latency_ms": latency_ms,
-                "protocol": active_proto,
-                "protocol_changed": protocol_changed,
-            }
+        # --- D. Tactical Game Reflex Lookup (Only for Games & Specific Tactical Keywords) ---
+        if active_proto.get("category") == "game" and len(user_text) <= 35:
+            reflex_hit = protocol_engine.evaluate_text_reflex(user_text)
+            if reflex_hit:
+                latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+                return {
+                    "text": reflex_hit["response"],
+                    "emotion": reflex_hit["emotion"],
+                    "mode": reflex_hit["mode"],
+                    "latency_ms": latency_ms,
+                    "protocol": active_proto,
+                    "protocol_changed": protocol_changed,
+                }
 
-        # --- E. Neural Visual-Cognitive Context + Multi-Provider LLM Inference ---
+        # --- E. Visual-Cognitive Context + Multi-Provider LLM Inference ---
         needs_vision = any(
             k in text_lower
             for k in ["nhìn màn hình", "quét màn hình", "trên màn hình", "đang mở gì", "mắt thấy gì", "màn hình", "scan screen"]
@@ -349,11 +368,12 @@ class AutonomousBrainRouter:
         affect = neural_info.get("affect", {})
         cfg = config_manager.config
         sys_prompt = (
-            f"{cfg.system_persona}\n"
-            "QUY TẮC SỐNG CÒN: Trả lời tự nhiên như con người, tối đa 1 câu cực ngắn (dưới 18 từ), đi thẳng vào trọng tâm, "
-            "KHÔNG dùng ngoặc vuông, KHÔNG giải thích dài dòng.\n"
-            f"Ngữ cảnh đang mở: {win.window_title} ({active_proto['name']}).\n"
-            f"Kiến thức nền: {json.dumps(active_proto.get('knowledge_pack', {}), ensure_ascii=False)}"
+            f"{cfg.system_persona}\n\n"
+            "VĂN PHONG VÀ NGUYÊN TẮC BẮT BUỘC:\n"
+            "- Nói chuyện hoàn toàn tự nhiên, gần gũi, hóm hỉnh, như một người bạn đồng hành sống động.\n"
+            "- Trả lời thẳng vào trọng tâm câu hỏi của người dùng, độ dài súc tích (1-2 câu).\n"
+            "- TUYỆT ĐỐI KHÔNG tự động nói về các thuật ngữ kỹ thuật hay phần mềm nội bộ (như YOLO11n, YOLO-World, protocols, synapses, reflex, v.v.) trừ khi người dùng chủ động hỏi bạn được tạo ra như thế nào.\n"
+            f"- Cửa sổ người dùng đang mở trên màn hình: {win.window_title}."
         )
 
         messages = [{"role": "system", "content": sys_prompt}]

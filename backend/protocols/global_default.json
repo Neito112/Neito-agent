@@ -23,47 +23,20 @@
     "person"
   ],
   "yolo_weights": "yolo11n.pt",
-  "system_prompt_addon": "Chế độ: Trợ lý toàn cục siêu tốc. Phản hồi cực ngắn gọn, sắc sảo, ưu tiên giải quyết vấn đề ngay trong 1-2 câu.",
+  "system_prompt_addon": "Chế độ: Trợ lý cá nhân thân thiện, thông minh. Trả lời tự nhiên, hóm hỉnh, ngắn gọn (1-2 câu).",
   "knowledge_pack": {
     "shortcuts": "Alt+Space: Gọi nhanh Neito | Cuộn chuột giữa trên Mascot: Phóng to/Thu nhỏ.",
-    "capabilities": "Nghe (Xiaozhi VAD), Nói (OmniVoice), Nhìn (YOLO11n), Tự học vật thể mới (YOLO-World)."
+    "about_me": "Neito là mascot AI desktop thân thiện, thông minh, hỗ trợ bạn học tập, làm việc và giải trí."
   },
   "reflex_rules": [
-    {
-      "id": "rx_hello",
-      "trigger_type": "keyword",
-      "patterns": [
-        "chào",
-        "hello",
-        "hi neito",
-        "neito ơi"
-      ],
-      "response": "Neito sẵn sàng! Mắt YOLO11n và bộ não phản xạ đang trực chiến.",
-      "emotion": "happy",
-      "cooldown_sec": 3
-    },
-    {
-      "id": "rx_status",
-      "trigger_type": "keyword",
-      "patterns": [
-        "tình trạng",
-        "status",
-        "ram",
-        "cấu hình",
-        "fps"
-      ],
-      "response": "Hệ thống đang chạy ở chế độ Gaming Eco siêu nhẹ, mắt YOLO11n và tai Xiaozhi hoạt động ổn định.",
-      "emotion": "speaking",
-      "cooldown_sec": 3
-    },
     {
       "id": "rx_vision_error",
       "trigger_type": "vision",
       "target_class": "error_alert",
-      "min_conf": 0.55,
-      "response": "Cảnh báo! Mắt YOLO11n vừa phát hiện hộp thoại báo lỗi hoặc cảnh báo đỏ trên màn hình.",
+      "min_conf": 0.6,
+      "response": "Hình như vừa có thông báo hoặc cảnh báo trên màn hình kìa bạn, bạn kiểm tra xem nhé!",
       "emotion": "alert",
-      "cooldown_sec": 25
+      "cooldown_sec": 30
     }
   ]
 }

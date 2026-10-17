@@ -67,32 +67,26 @@ BACKEND_HTTP = "http://127.0.0.1:8765"
 BACKEND_WS = "ws://127.0.0.1:8765/ws/xiaozhi"
 
 PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
-    "mochi_core": {
-        "label": "Mochi Core (Firmware Gốc • Free)",
-        "base_url": "local:mochi_firmware",
-        "models": ["mochi-smart-v4 (Free)", "mochi-fast-v4 (Free)", "mochi-waifu-v4 (Free)"],
-        "needs_key": False,
-    },
     "gemini": {
-        "label": "Google Gemini",
+        "label": "Google Gemini (Free Key • Khuyên dùng)",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
         "models": ["gemini-flash-lite-latest", "gemini-3.8-flash", "gemini-flash-latest"],
         "needs_key": True,
     },
+    "groq": {
+        "label": "Groq LPU (Free Key • Siêu tốc)",
+        "base_url": "https://api.groq.com/openai/v1",
+        "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen-2.5-32b"],
+        "needs_key": True,
+    },
     "ollama": {
-        "label": "Ollama (Local)",
+        "label": "Ollama (Local Offline • Miễn phí)",
         "base_url": "http://localhost:11434/v1",
         "models": ["qwen2.5:7b", "llama3.2:3b", "deepseek-r1:8b", "gemma2:9b"],
         "needs_key": False,
     },
-    "lmstudio": {
-        "label": "LM Studio / vLLM (Local)",
-        "base_url": "http://localhost:1234/v1",
-        "models": ["local-model", "qwen2.5-7b-instruct", "llama-3.2-3b-instruct"],
-        "needs_key": False,
-    },
     "openai": {
-        "label": "OpenAI",
+        "label": "OpenAI (ChatGPT)",
         "base_url": "https://api.openai.com/v1",
         "models": ["gpt-4o-mini", "gpt-4o", "o3-mini"],
         "needs_key": True,
@@ -103,11 +97,17 @@ PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
         "models": ["deepseek-chat", "deepseek-reasoner"],
         "needs_key": True,
     },
-    "groq": {
-        "label": "Groq (LPU)",
-        "base_url": "https://api.groq.com/openai/v1",
-        "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen-2.5-32b"],
-        "needs_key": True,
+    "lmstudio": {
+        "label": "LM Studio / vLLM (Local)",
+        "base_url": "http://localhost:1234/v1",
+        "models": ["local-model", "qwen2.5-7b-instruct", "llama-3.2-3b-instruct"],
+        "needs_key": False,
+    },
+    "mochi_core": {
+        "label": "Mochi Core (Offline / Cơ bản)",
+        "base_url": "local:mochi_firmware",
+        "models": ["mochi-smart-v4 (Free)", "mochi-fast-v4 (Free)", "mochi-waifu-v4 (Free)"],
+        "needs_key": False,
     },
 }
 
