@@ -143,7 +143,7 @@ class MochiFirmwareCoreBrain:
             "face": intro_face,
             "display_mode": "face",
             "emotion": "happy",
-            "text": f"✨ {self.nvs.get('custom_title', 'THE MOCHI')} • Moshi Moshi!",
+            "text": "",
             "audio": sfx,
         }
 
@@ -265,7 +265,7 @@ class MochiFirmwareCoreBrain:
             "face": face,
             "display_mode": "notification",
             "emotion": "excited" if is_money else "curious",
-            "text": f"📱 [{app_name}] {title}: {message}",
+            "text": "",
             "audio": sfx,
         }
 
@@ -289,7 +289,7 @@ class MochiFirmwareCoreBrain:
             "face": "car",
             "display_mode": "navigation",
             "emotion": "focused",
-            "text": f"🧭 Google Maps: {direction} ({distance}) → {street}",
+            "text": "",
             "audio": sfx,
         }
 

@@ -69,7 +69,7 @@ VOICE_DSP_PROFILES: Dict[str, Tuple[str, str, str]] = {
     "edge_tts:en-US-AndrewMultilingualNeural": ("en-US-AndrewMultilingualNeural", "+0Hz", "+6%"),
     "edge_tts:en-US-BrianMultilingualNeural": ("en-US-BrianMultilingualNeural", "+0Hz", "+4%"),
     "edge_tts:ko-KR-HyunsuMultilingualNeural": ("ko-KR-HyunsuMultilingualNeural", "+0Hz", "+6%"),
-    "edge_tts:de-DE-FlorianMultilingualNeural": ("de-DE-FlorianFlorianNeural", "+0Hz", "+6%"),
+    "edge_tts:de-DE-FlorianMultilingualNeural": ("de-DE-FlorianMultilingualNeural", "+0Hz", "+6%"),
     "edge_tts:fr-FR-RemyMultilingualNeural": ("fr-FR-RemyMultilingualNeural", "+0Hz", "+6%"),
 
     # Quốc Tế
@@ -95,6 +95,29 @@ VOICE_DSP_PROFILES: Dict[str, Tuple[str, str, str]] = {
     "omnivoice:neito_vi_male": ("vi-VN-NamMinhNeural", "+0Hz", "+6%"),
 }
 
+_TTS_EMOJI_STRIP_RE = re.compile(
+    "["
+    "\U00010000-\U0010ffff"
+    "\u2600-\u27bf"
+    "\u2300-\u23ff"
+    "\u2b00-\u2bff"
+    "\ufe00-\ufe0f"
+    "\u200d"
+    "]+",
+    flags=re.UNICODE,
+)
+
+
+def strip_icons_and_symbols(text: str) -> str:
+    if not text:
+        return ""
+    t = re.sub(r"<think(?:ing)?>.*?(?:</think(?:ing)?>|$)", "", text, flags=re.DOTALL | re.IGNORECASE)
+    t = re.sub(r"\[[^\]]*\]", " ", t)
+    t = re.sub(r"\(\s*(?:uwu|>\.<|\^_\^)\s*\)", " ", t, flags=re.IGNORECASE)
+    t = _TTS_EMOJI_STRIP_RE.sub("", t)
+    t = re.sub(r"[*#`_~|<>•]+", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
 
 class OmniVoiceEngine:
     """
@@ -108,8 +131,9 @@ class OmniVoiceEngine:
     SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。\n])\s+")
 
     def split_sentences(self, text: str) -> List[str]:
-        parts = [p.strip() for p in self.SENTENCE_SPLIT_RE.split(text) if p.strip()]
-        return parts if parts else ([text.strip()] if text.strip() else [])
+        cleaned = strip_icons_and_symbols(text)
+        parts = [p.strip() for p in self.SENTENCE_SPLIT_RE.split(cleaned) if p.strip()]
+        return parts if parts else ([cleaned] if cleaned else [])
 
     def compute_lipsync_envelope(self, text: str, duration_ms: Optional[int] = None) -> List[float]:
         words = text.strip().split()
@@ -257,7 +281,7 @@ class OmniVoiceEngine:
     async def synthesize(
         self, text: str, emotion: str = "neutral", face_name: str = "", force_preset: Optional[str] = None
     ) -> Dict[str, Any]:
-        clean_text = re.sub(r"[*#`_~]+", "", text).strip()
+        clean_text = strip_icons_and_symbols(text)
         if not clean_text:
             return {"audio_base64": None, "format": "none", "lip_sync": [0.0], "engine": "none"}
 

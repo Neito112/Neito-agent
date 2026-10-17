@@ -67,6 +67,12 @@ BACKEND_HTTP = "http://127.0.0.1:8765"
 BACKEND_WS = "ws://127.0.0.1:8765/ws/xiaozhi"
 
 PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
+    "mochi_core": {
+        "label": "Mochi Core (Firmware Gốc • Free)",
+        "base_url": "local:mochi_firmware",
+        "models": ["mochi-smart-v4 (Free)", "mochi-fast-v4 (Free)", "mochi-waifu-v4 (Free)"],
+        "needs_key": False,
+    },
     "gemini": {
         "label": "Google Gemini (Free Key • Khuyên dùng)",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
@@ -101,12 +107,6 @@ PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
         "label": "LM Studio / vLLM (Local)",
         "base_url": "http://localhost:1234/v1",
         "models": ["local-model", "qwen2.5-7b-instruct", "llama-3.2-3b-instruct"],
-        "needs_key": False,
-    },
-    "mochi_core": {
-        "label": "Mochi Core (Offline / Cơ bản)",
-        "base_url": "local:mochi_firmware",
-        "models": ["mochi-smart-v4 (Free)", "mochi-fast-v4 (Free)", "mochi-waifu-v4 (Free)"],
         "needs_key": False,
     },
 }
@@ -1513,7 +1513,7 @@ class MinimalSettingsPopover(DraggableFramelessWidget):
             p._on_ws_message(
                 {
                     "type": "tts_chunk",
-                    "sentence": f"✨ Giọng {lbl}",
+                    "sentence": f"Giọng {lbl}",
                     "audio_base64": audio_data.get("audio_base64"),
                     "format": audio_data.get("format", "mp3"),
                     "lip_sync": audio_data.get("lip_sync"),
@@ -1586,7 +1586,7 @@ class MinimalSettingsPopover(DraggableFramelessWidget):
             self.adjustSize()
             p = self.parent()
             if silent and p and hasattr(p, "_show_speech_bubble"):
-                p._show_speech_bubble(f"🎉 Đã có bản Neito v{latest_v} mới! Bấm Cài đặt để cập nhật nhé!")
+                p._show_speech_bubble(f"Đã có bản Neito v{latest_v} mới, bấm Cài đặt để cập nhật nhé!")
         else:
             if not silent:
                 if data.get("ok"):
@@ -1905,8 +1905,16 @@ class NeitoDesktopOverlay(QWidget):
         pass
 
     def _show_speech_bubble(self, text: str):
+        import re
+        clean = re.sub(r"<think>.*?</think>", "", str(text or ""), flags=re.DOTALL | re.IGNORECASE)
+        clean = re.sub(r"\[[^\]]*\]", "", clean)
+        clean = re.sub(r"\(\s*(?:UwU|OwO|>\.<|\^_\^|T_T|-_-)\s*\)", "", clean, flags=re.IGNORECASE)
+        clean = re.sub(r"[\U00010000-\U0010ffff\u2600-\u27bf\ufe0f\u200d]+", "", clean)
+        clean = re.sub(r"[*_~`#>|]+", "", clean).strip()
+        if not clean:
+            return
         def _show():
-            self.speech_bubble.setText(text)
+            self.speech_bubble.setText(clean)
             self.speech_bubble.show()
         self._reanchor_around_mascot(_show)
 
@@ -2044,10 +2052,6 @@ class NeitoDesktopOverlay(QWidget):
             if face:
                 self.mascot.set_mochi_face(face, loop=False)
             self.mascot.set_emotion(msg.get("emotion", "speaking"))
-            text = (msg.get("text") or msg.get("full_text") or "").strip()
-            if text:
-                self._show_speech_bubble(text)
-                self.bubble_hide_timer.start(7500)
 
         elif mtype == "tts_chunk":
             self.audio_queue.append(msg)

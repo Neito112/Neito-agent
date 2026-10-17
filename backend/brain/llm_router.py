@@ -1,7 +1,8 @@
+import datetime
 import json
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 from backend.core.config import config_manager
@@ -19,6 +20,102 @@ _FIRMWARE_CLOUD_BYTES = (
 
 def _get_builtin_firmware_key() -> str:
     return bytes(b ^ 0x5A for b in _FIRMWARE_CLOUD_BYTES).decode("ascii")
+
+
+# Valid Mochi Firmware OLED face names for emotional expression
+VALID_MOCHI_FACES = {
+    "mac_dinh", "smile", "happy_2", "UwU", "hehe", "laugh", "love", "love2",
+    "star", "cool", "wink", "nheo_mat", "angry", "angry2", "angry3", "cry",
+    "cry2", "scared", "sleepy", "distracted", "cuoi_khinh_bi", "yelling",
+    "chong_mat", "samurai", "gundam", "neon", "sakura", "music", "show_clock", "cpuz",
+}
+
+EMOJI_AND_SYMBOL_RE = re.compile(
+    "["
+    "\U00010000-\U0010ffff"  # Supplementary planes (all emojis, pictographs, transport/map symbols)
+    "\u2600-\u27bf"          # Misc symbols & dingbats
+    "\u2300-\u23ff"          # Misc technical symbols
+    "\u2b00-\u2bff"          # Misc symbols and arrows
+    "\ufe00-\ufe0f"          # Variation selectors
+    "\u200d"                 # Zero width joiner
+    "]+",
+    flags=re.UNICODE,
+)
+
+
+def extract_face_and_clean_speech(raw_text: str) -> Tuple[str, str]:
+    """
+    Original Firmware Output Sanitizer:
+    1. Strips any <think>...</think> or <thought>...</thought> reasoning blocks.
+    2. Extracts [face:<name>] tag (if present) so the mascot expresses emotion via its OLED face.
+    3. Strips kaomojis/stage directions like (UwU), (*cười*), *cười*, and all emojis/icons/markdown
+       so only pure spoken Vietnamese dialogue is displayed and spoken by TTS.
+    """
+    if not raw_text:
+        return "", ""
+
+    text = raw_text
+
+    # 1. Remove <think>...</think> or <thought>...</thought> blocks (including unclosed ones)
+    text = re.sub(r"<think(?:ing)?>.*?(?:</think(?:ing)?>|$)", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<thought>.*?(?:</thought>|$)", "", text, flags=re.DOTALL | re.IGNORECASE)
+
+    # 2. Extract [face:xxx] or [emotion:xxx] tag
+    chosen_face = ""
+    face_match = re.search(r"\[\s*(?:face|emotion|bieu_cam)\s*:\s*([a-zA-Z0-9_]+)\s*\]", text, flags=re.IGNORECASE)
+    if face_match:
+        candidate = face_match.group(1).strip()
+        if candidate in VALID_MOCHI_FACES:
+            chosen_face = candidate
+        elif candidate.lower() == "uwu":
+            chosen_face = "UwU"
+        elif candidate.lower() in ("happy", "vui"):
+            chosen_face = "smile"
+        elif candidate.lower() in ("sad", "buon"):
+            chosen_face = "cry"
+    # Strip any bracket tags like [face:...] or [UwU]
+    text = re.sub(r"\[[^\]]*\]", " ", text)
+
+    # 3. Detect if LLM wrote (UwU) before stripping it
+    if not chosen_face and re.search(r"\(\s*uwu\s*\)", text, flags=re.IGNORECASE):
+        chosen_face = "UwU"
+
+    # 4. Strip parenthetical stage directions / kaomojis / inline reasoning like (UwU), (cười), (Suy nghĩ: ...)
+    text = re.sub(
+        r"\(\s*(?:uwu|>\.<|\^_\^|suy nghĩ[^)]*|suy luận[^)]*|cười[^)]*|nháy mắt[^)]*|thở dài[^)]*|gật đầu[^)]*|lắc đầu[^)]*)\s*\)",
+        " ",
+        text,
+        flags=re.IGNORECASE,
+    )
+    # Strip asterisk stage directions like *cười khúc khích* while keeping normal words if bolded
+    text = re.sub(r"\*+[^*\n]{1,30}\*+", lambda m: m.group(0).strip("*"), text)
+
+    # 5. Strip all markdown symbols and Unicode emojis/icons
+    text = re.sub(r"[*#`_~|<>]+", "", text)
+    text = EMOJI_AND_SYMBOL_RE.sub("", text)
+
+    # 6. Normalize whitespace
+    text = re.sub(r"\s+", " ", text).strip()
+
+    # 7. Auto-select an expressive Mochi OLED face from dialogue tone if LLM didn't tag one
+    if not chosen_face:
+        tl = text.lower()
+        if any(w in tl for w in ["yêu", "thương", "ngọt ngào", "thả tim", "nhớ bạn"]):
+            chosen_face = "love"
+        elif any(w in tl for w in ["haha", "hihi", "buồn cười", "trêu", "đùa"]):
+            chosen_face = "hehe"
+        elif any(w in tl for w in ["tuyệt vời", "xuất sắc", "đỉnh", "quá chuẩn"]):
+            chosen_face = "star"
+        elif any(w in tl for w in ["buồn", "tiếc", "khóc", "xin lỗi"]):
+            chosen_face = "cry"
+        elif any(w in tl for w in ["ngủ", "khuya", "mệt"]):
+            chosen_face = "sleepy"
+        elif any(w in tl for w in ["dễ thương", "đáng yêu", "nè", "nha"]):
+            chosen_face = "UwU"
+        else:
+            chosen_face = "smile"
+
+    return chosen_face, text
 
 
 # ============================================================================
@@ -109,7 +206,7 @@ PROTOCOL_MCP_TOOLS: List[Dict[str, Any]] = [
             "name": "set_mochi_expression",
             "description": (
                 "Đổi biểu cảm khuôn mặt OLED của firmware Mochi (như smile, UwU, love, star, cool, "
-                "angry, cry, sleepy, gundam, show_clock, cpuz) khi người dùng yêu cầu đổi biểu cảm/đồng hồ."
+                "angry, cry, sleepy, gundam, show_clock, cpuz) khi người dùng yêu cầu đổi biểu cảm hoặc xem đồng hồ."
             ),
             "parameters": {
                 "type": "object",
@@ -129,10 +226,9 @@ PROTOCOL_MCP_TOOLS: List[Dict[str, Any]] = [
 class AutonomousBrainRouter:
     """
     Original Firmware Chat Pipeline + Protocol MCP Toolset:
-    - Preserves the clean 1:1 firmware conversation loop (LLM + Function Calling / MCP Tools).
-    - Automatically attaches the active window's loaded Protocol knowledge context.
-    - Exposes the Protocol Toolset (`PROTOCOL_MCP_TOOLS`) so the LLM natively invokes protocol/vision tools
-      only when needed, while keeping all normal conversations 100% natural.
+    - Uses Mochi/Xiaozhi Cloud Free LLM out of the box (plus optional user providers).
+    - Expresses emotions visually via the 71 Mochi OLED faces (`face`), never via text emojis/icons.
+    -Outputs clean, plain spoken Vietnamese sentences for Speech Bubble & TTS.
     """
 
     def __init__(self):
@@ -360,9 +456,10 @@ class AutonomousBrainRouter:
     async def generate_response(self, user_text: str) -> Dict[str, Any]:
         """
         1:1 Firmware Chat Pipeline + Protocol MCP Toolset:
-        1. Syncs active foreground window with the loaded Protocol Cartridge.
-        2. Sends conversation + active protocol knowledge + PROTOCOL_MCP_TOOLS directly to the LLM.
-        3. If the LLM invokes a tool (`tool_calls`), executes the tool and completes the turn naturally.
+        - Syncs active foreground window with the loaded Protocol Cartridge.
+        - Drives the mascot's 71 OLED faces (`face`) directly from LLM emotion tag.
+        - Strips all icons, emojis, markdown symbols, and reasoning blocks so only pure spoken text
+          is sent to the speech bubble and TTS engine.
         """
         t0 = time.perf_counter()
         win = window_watcher.get_active_window()
@@ -372,14 +469,25 @@ class AutonomousBrainRouter:
 
         cfg = config_manager.config
         ep = self._resolve_endpoint()
+        now_str = datetime.datetime.now().strftime("%H:%M, ngày %d/%m/%Y")
 
-        # Build clean Firmware System Prompt + Active Protocol Knowledge Pack (when matched)
-        sys_parts = [cfg.system_persona]
+        sys_parts = [
+            cfg.system_persona,
+            (
+                "QUY TẮC ĐẦU RA CỦA FIRMWARE:\n"
+                "- Mở đầu câu trả lời bằng đúng 1 thẻ biểu cảm khuôn mặt: [face:<tên>] "
+                "(chọn 1 trong: smile, UwU, happy_2, hehe, laugh, love, star, cool, wink, nheo_mat, angry, cry, scared, sleepy).\n"
+                "- Theo sau thẻ [face:<tên>] là lời nói thuần túy bằng tiếng Việt tự nhiên (1-2 câu ngắn gọn).\n"
+                "- TUYỆT ĐỐI KHÔNG dùng bất kỳ emoji/icon nào, KHÔNG viết chữ (UwU) hay *hành động*, KHÔNG dùng ký hiệu markdown (*, #, ~), và KHÔNG xuất phần suy luận.\n"
+                "- Bình thường trong giao tiếp hằng ngày KHÔNG tự ý nhắc đến tên phần mềm bên trong; chỉ khi người dùng chủ động hỏi bạn được tạo ra như thế nào / cấu tạo ra sao thì mới giải thích bạn được xây dựng trên nền tảng firmware gốc Xiaozhi và The Mochi (với 71 biểu cảm OLED và Chronos), tích hợp thêm bộ công cụ giao thức thông minh (Protocol Engine) và thị giác máy tính.\n"
+                f"- Thời gian hệ thống hiện tại: {now_str}."
+            ),
+        ]
         if active_proto.get("id") != "global_default":
             addon = active_proto.get("system_prompt_addon", "")
             kpack = active_proto.get("knowledge_pack", {})
             if addon:
-                sys_parts.append(f"Giao thức đang kích hoạt ({active_proto['name']}): {addon}")
+                sys_parts.append(f"Giao thức đang mở ({active_proto['name']}): {addon}")
             if kpack:
                 sys_parts.append(f"Dữ liệu giao thức: {json.dumps(kpack, ensure_ascii=False)}")
 
@@ -388,10 +496,10 @@ class AutonomousBrainRouter:
             messages.append(h)
         messages.append({"role": "user", "content": user_text})
 
-        llm_reply: Optional[str] = None
-        selected_face: str = ""
+        raw_reply: Optional[str] = None
+        tool_selected_face: str = ""
         provider_used = f"{ep['provider']}:{ep.get('display_model', ep['model'])}"
-        gen_tokens = min(220, cfg.llm.max_tokens or 220)
+        gen_tokens = min(200, cfg.llm.max_tokens or 200)
         client = self._get_http_client()
 
         headers = {"Content-Type": "application/json"}
@@ -415,7 +523,6 @@ class AutonomousBrainRouter:
                 choice_msg = resp.json()["choices"][0]["message"]
                 tool_calls = choice_msg.get("tool_calls") or []
 
-                # If the LLM invoked one or more Protocol/Device MCP Tools
                 if tool_calls:
                     messages.append(choice_msg)
                     for tc in tool_calls:
@@ -427,7 +534,7 @@ class AutonomousBrainRouter:
                             fn_args = {}
                         tool_res = await self._execute_mcp_tool(fn_name, fn_args, active_proto)
                         if fn_name == "set_mochi_expression":
-                            selected_face = fn_args.get("face", "")
+                            tool_selected_face = fn_args.get("face", "")
                         if fn_name == "create_or_update_protocol" and "protocol" in tool_res:
                             active_proto = tool_res["protocol"]
                             protocol_changed = True
@@ -451,65 +558,59 @@ class AutonomousBrainRouter:
                         },
                     )
                     if resp2.status_code == 200:
-                        llm_reply = (resp2.json()["choices"][0]["message"].get("content") or "").strip()
+                        raw_reply = (resp2.json()["choices"][0]["message"].get("content") or "").strip()
                 else:
-                    llm_reply = (choice_msg.get("content") or "").strip()
+                    raw_reply = (choice_msg.get("content") or "").strip()
         except Exception:
-            llm_reply = None
+            raw_reply = None
 
-        # Secondary Cloud LLM Failover (if primary endpoint had a transient network error or doesn't support tools)
-        if not llm_reply:
+        if not raw_reply:
             try:
                 resp_fb = await client.post(
                     f"{ep['base_url']}/chat/completions",
                     headers=headers,
                     json={
                         "model": ep["model"],
-                        "messages": [m for m in messages if m.get("role") in ("system", "user", "assistant") and m.get("content")],
+                        "messages": [
+                            m for m in messages
+                            if m.get("role") in ("system", "user", "assistant") and m.get("content")
+                        ],
                         "temperature": cfg.llm.temperature,
                         "max_tokens": gen_tokens,
                     },
                 )
                 if resp_fb.status_code == 200:
-                    llm_reply = (resp_fb.json()["choices"][0]["message"].get("content") or "").strip()
+                    raw_reply = (resp_fb.json()["choices"][0]["message"].get("content") or "").strip()
             except Exception:
                 pass
 
-        if not llm_reply:
-            try:
-                resp_p = await client.post(
-                    "https://text.pollinations.ai/openai/chat/completions",
-                    headers={"Content-Type": "application/json"},
-                    json={
-                        "model": "openai",
-                        "messages": [m for m in messages if m.get("role") in ("system", "user", "assistant") and m.get("content")],
-                    },
-                )
-                if resp_p.status_code == 200:
-                    llm_reply = (resp_p.json()["choices"][0]["message"].get("content") or "").strip()
-            except Exception:
-                pass
+        if not raw_reply:
+            raw_reply = "[face:sleepy] Kết nối mạng đang gián đoạn, bạn thử lại sau giây lát nhé."
 
-        if not llm_reply:
-            llm_reply = "Hiện tại kết nối mạng đang gián đoạn, bạn thử lại sau giây lát nhé!"
+        parsed_face, clean_reply = extract_face_and_clean_speech(raw_reply)
+        final_face = tool_selected_face or parsed_face or "smile"
+        if not clean_reply:
+            clean_reply = "Mình nghe đây, bạn cần mình hỗ trợ gì nào?"
+
+        # Update Mochi Firmware Core face state
+        mochi_core_brain.current_face = final_face
+        mochi_core_brain.display_mode = final_face if final_face in ("show_clock", "cpuz") else "face"
 
         self.history.append({"role": "user", "content": user_text})
-        self.history.append({"role": "assistant", "content": llm_reply})
+        self.history.append({"role": "assistant", "content": clean_reply})
         if len(self.history) > self.max_history:
             self.history = self.history[-self.max_history :]
 
         latency_ms = round((time.perf_counter() - t0) * 1000, 1)
-        result: Dict[str, Any] = {
-            "text": llm_reply,
+        return {
+            "text": clean_reply,
+            "face": final_face,
             "emotion": "speaking",
             "mode": f"llm ({provider_used})",
             "latency_ms": latency_ms,
             "protocol": active_proto,
             "protocol_changed": protocol_changed,
         }
-        if selected_face:
-            result["face"] = selected_face
-        return result
 
 
 brain_router = AutonomousBrainRouter()
