@@ -66,6 +66,13 @@ except ImportError:
 BACKEND_HTTP = "http://127.0.0.1:8765"
 BACKEND_WS = "ws://127.0.0.1:8765/ws/xiaozhi"
 
+
+def _resolve_app_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
 PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
     "mochi_core": {
         "label": "Mochi Core (Firmware Gốc • Free)",
