@@ -12,7 +12,7 @@ datas = [
 ]
 
 # Collect submodules and dynamic assets for key dependencies
-for pkg in ['uvicorn', 'fastapi', 'websockets', 'edge_tts', 'pydantic']:
+for pkg in ['uvicorn', 'fastapi', 'websockets', 'edge_tts', 'pydantic', 'winrt']:
     try:
         pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)
         datas += pkg_datas
@@ -34,9 +34,11 @@ hiddenimports = [
     'websockets.legacy.client',
     'sounddevice',
     'speech_recognition',
+    'serial',
     'desktop_overlay',
     'backend.main',
     'backend.core.config',
+    'backend.core.chronos_ble_server',
     'backend.core.mochi_core_brain',
     'backend.core.protocol_engine',
     'backend.core.mobile_companion_ui',

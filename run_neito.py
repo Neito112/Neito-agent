@@ -19,13 +19,16 @@ def start_backend_server():
 
 
 if __name__ == "__main__":
-    server_thread = threading.Thread(target=start_backend_server, daemon=True)
-    server_thread.start()
-
     if "--headless" in sys.argv:
+        server_thread = threading.Thread(target=start_backend_server, daemon=True)
+        server_thread.start()
         while True:
             time.sleep(1)
     else:
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication(sys.argv)
+        server_thread = threading.Thread(target=start_backend_server, daemon=True)
+        server_thread.start()
         time.sleep(0.6)
         from desktop_overlay import run_native_overlay
         run_native_overlay()

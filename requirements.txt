@@ -15,4 +15,9 @@ psutil>=5.9.8
 qrcode>=7.4.2
 sounddevice>=0.4.6
 SpeechRecognition>=3.10.1
+pyserial>=3.5
+winrt-Windows.Devices.Bluetooth; sys_platform == 'win32'
+winrt-Windows.Devices.Bluetooth.GenericAttributeProfile; sys_platform == 'win32'
+winrt-Windows.Devices.Bluetooth.Advertisement; sys_platform == 'win32'
+winrt-Windows.Storage.Streams; sys_platform == 'win32'
 pyinstaller>=6.4.0

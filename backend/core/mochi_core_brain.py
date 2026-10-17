@@ -80,6 +80,12 @@ class MochiFirmwareCoreBrain:
                 saved = json.loads(NVS_FILE_PATH.read_text(encoding="utf-8"))
                 if isinstance(saved, dict):
                     self.nvs.update({str(k): str(v) for k, v in saved.items()})
+                    try:
+                        spd = int(float(self.nvs.get("gif_speed", "100")))
+                        if spd < 50 or spd > 200:
+                            self.nvs["gif_speed"] = "100"
+                    except Exception:
+                        self.nvs["gif_speed"] = "100"
                     self.esp32.device_state.update(self.nvs)
             except Exception:
                 pass
@@ -122,6 +128,40 @@ class MochiFirmwareCoreBrain:
         self.nvs.update(self.esp32.device_state)
         self._save_nvs()
         return replies
+
+    def build_serial_side_effect_packet(self, cmd_line: str) -> Optional[Dict[str, Any]]:
+        """Builds a live Mascot update packet when settings are changed from `/thietlap`."""
+        line = cmd_line.strip()
+        if ":" not in line:
+            return None
+        key, val = [s.strip() for s in line.split(":", 1)]
+
+        if key == "set" and val == "reset":
+            return self.build_boot_intro_packet()
+
+        if key in ("gif_default", "gif_intro", "gif_touch", "gif_double_touch", "gif_long_touch"):
+            face = val.replace("/gifs/", "").strip()
+            if face and face not in ("next_gif", "bluetooth"):
+                self.current_face = face
+                return {
+                    "type": "mochi_firmware_event",
+                    "event": "serial_config_sync",
+                    "face": face,
+                    "display_mode": face if face in ("show_clock", "cpuz") else "face",
+                    "emotion": "happy",
+                    "nvs": self.nvs,
+                }
+
+        if key in ("gif_speed", "gif_delay", "isInverted", "gif_negative", "set"):
+            return {
+                "type": "mochi_firmware_event",
+                "event": "serial_config_sync",
+                "face": self.nvs.get("gif_default", self.current_face),
+                "display_mode": "face",
+                "emotion": "happy",
+                "nvs": self.nvs,
+            }
+        return None
 
     def get_enabled_faces(self) -> List[str]:
         bits = self.nvs.get("gif_selected", "1" * len(self.all_face_names))

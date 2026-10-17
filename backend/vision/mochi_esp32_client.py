@@ -268,12 +268,21 @@ class MochiESP32Client:
         self.chip_family = "ESP32-C3"
         self.firmware_version = "4.3.2"
         self.baud_rate = 115200
-        self.device_state: Dict[str, str] = {
+        self._chunk_buffers: Dict[str, str] = {}
+        self.device_state: Dict[str, str] = self._default_state()
+        ESP32_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        FACES_DIR.mkdir(parents=True, exist_ok=True)
+        GIFS_DIR.mkdir(parents=True, exist_ok=True)
+        SOUNDS_DIR.mkdir(parents=True, exist_ok=True)
+        PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _default_state(self) -> Dict[str, str]:
+        return {
             "MAC": self.mac_address,
             "licOK": "true",
             "version": self.firmware_version,
-            "gif_speed": "42",
-            "gif_delay": "10000",
+            "gif_speed": "100",
+            "gif_delay": "5000",
             "gif_negative": "false",
             "gif_default": "mac_dinh",
             "gif_intro": "intro",
@@ -281,29 +290,36 @@ class MochiESP32Client:
             "gif_double_touch": "UwU",
             "gif_long_touch": "show_clock",
             "gif_selected": "1" * 71,
-            "intro_sound": "moshi.mp3",
-            "notification_sound": "moshi.mp3",
-            "touch_sound": "C5 50 0 E5 50 0 C5 50 0",
-            "double_touch_sound": "E5 70 0 G5 70 0",
-            "long_touch_sound": "C5 50 0 E5 50 0 G5 50 0",
+            "intro_sound": "G4 100 20 C5 100 20 E5 100 20 G5 100 20 C6 100 20 D6 100 20 E6 200 200",
+            "notification_sound": "G4 100 20 C5 100 20 E5 100 20 G5 200 200",
+            "touch_sound": "C4 100 20 D4 100 20 E4 100 20 F4 200 200",
+            "double_touch_sound": "C5 100 20 D5 100 20 E5 100 20 F5 200 200",
+            "long_touch_sound": "C6 100 20 D6 100 20 E6 100 20 F6 200 200",
             "notifDuration": "5",
             "bluetooth_auto_off": "0",
             "bluetoothName": "THE MOCHI",
             "display_type": "ssd1306",
             "is_flip_mode": "0",
+            "scl_pin": "9",
+            "sda_pin": "8",
             "use_sound": "2",
-            "volume": "8",
+            "I2S_LRCK_PIN": "6",
+            "I2S_BCK_PIN": "7",
+            "I2S_DATA_PIN": "5",
+            "volume": "80",
+            "buzzer_pin": "10",
+            "touch_pin": "3",
             "language": "0",
-            "custom_title": "NEITO AI",
+            "custom_title": "THE MOCHI",
+            "useSD": "false",
+            "SD_SCK": "4",
+            "SD_MOSI": "6",
+            "SD_MISO": "5",
+            "SD_CS": "7",
         }
-        ESP32_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        FACES_DIR.mkdir(parents=True, exist_ok=True)
-        GIFS_DIR.mkdir(parents=True, exist_ok=True)
-        SOUNDS_DIR.mkdir(parents=True, exist_ok=True)
-        PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
 
     def handle_serial_command(self, line: str) -> List[str]:
-        """Emulates the ESP32-C3 serial command parser (`set:get`, `set:save`, etc.)."""
+        """Emulates the ESP32-C3 serial command parser (`set:get`, `set:save`, etc.) for `/thietlap`."""
         line = line.strip()
         if ":" not in line:
             return []
@@ -311,20 +327,67 @@ class MochiESP32Client:
         key = key.strip()
         val = val.strip()
 
-        if key == "set" and val == "get":
-            return [f"{k}:{v}" for k, v in self.device_state.items()]
-        if key == "set" and val == "save":
-            return ["Return:Đã lưu cài đặt vào bộ nhớ NVS ESP32-C3!"]
-        if key == "set" and val == "default1":
-            self.device_state["gif_speed"] = "42"
-            self.device_state["gif_delay"] = "10000"
-            self.device_state["gif_default"] = "mac_dinh"
-            return ["Return:Đã khôi phục mặc định GIF!"]
+        # Ensure gif_speed is always within [50, 200] so /thietlap never hangs on -1
+        try:
+            spd = int(float(self.device_state.get("gif_speed", "100")))
+            if spd < 50 or spd > 200:
+                self.device_state["gif_speed"] = "100"
+        except Exception:
+            self.device_state["gif_speed"] = "100"
+
+        if key == "set":
+            if val == "get":
+                return [f"{k}:{v}" for k, v in self.device_state.items()]
+            if val == "save":
+                return ["SAVED:true"]
+            if val == "reset":
+                return ["RESET:true"]
+            if val == "default1":
+                d = self._default_state()
+                for k in ("gif_speed", "gif_delay", "gif_negative", "gif_default", "gif_intro", "gif_touch", "gif_double_touch", "gif_long_touch", "gif_selected"):
+                    self.device_state[k] = d[k]
+                return [f"{k}:{v}" for k, v in self.device_state.items()]
+            if val == "default2":
+                d = self._default_state()
+                for k in ("intro_sound", "notification_sound", "touch_sound", "double_touch_sound", "long_touch_sound", "volume"):
+                    self.device_state[k] = d[k]
+                return [f"{k}:{v}" for k, v in self.device_state.items()]
+            if val == "default3":
+                d = self._default_state()
+                for k in ("display_type", "is_flip_mode", "scl_pin", "sda_pin", "use_sound", "I2S_LRCK_PIN", "I2S_BCK_PIN", "I2S_DATA_PIN", "buzzer_pin", "touch_pin", "language", "custom_title", "useSD", "SD_SCK", "SD_MOSI", "SD_MISO", "SD_CS"):
+                    self.device_state[k] = d[k]
+                return [f"{k}:{v}" for k, v in self.device_state.items()]
+
         if key == "key":
             self.device_state["licOK"] = "true"
             return ["licOK:true"]
+
+        if key == "isInverted":
+            self.device_state["gif_negative"] = "true" if val.lower() in ("true", "1") else "false"
+            return [f"gif_negative:{self.device_state['gif_negative']}"]
+
+        if key == "gif_selected_bin":
+            self.device_state["gif_selected"] = val
+            return [f"gif_selected:{val}"]
+
+        # Handle chunked melody fields from /thietlap (`<field>`, `<field>_cont`, `<field>_end`)
+        sound_fields = ("intro_sound", "touch_sound", "double_touch_sound", "long_touch_sound", "notification_sound")
+        for sf in sound_fields:
+            if key == sf:
+                self._chunk_buffers[sf] = val
+                self.device_state[sf] = val
+                return [f"ACK:{sf}"]
+            if key == f"{sf}_cont":
+                self._chunk_buffers[sf] = self._chunk_buffers.get(sf, "") + val
+                self.device_state[sf] = self._chunk_buffers[sf]
+                return [f"ACK:{sf}_cont"]
+            if key == f"{sf}_end":
+                if sf in self._chunk_buffers:
+                    self.device_state[sf] = self._chunk_buffers.pop(sf)
+                return [f"{sf}:{self.device_state.get(sf, '')}"]
+
         self.device_state[key] = val
-        return [f"ACK:{key}={val}"]
+        return [f"{key}:{val}"]
 
     def check_supporter_license(self) -> Dict[str, object]:
         try:
@@ -636,12 +699,15 @@ class MochiFacePlayer:
     def __init__(self) -> None:
         self.frames_map: Dict[str, np.ndarray] = {}
         self.delays_map: Dict[str, List[int]] = {}
+        self.default_face: str = "mac_dinh"
         self.current_face: str = "intro"
         self.frame_idx: int = 0
         self.frame_elapsed_ms: float = 0.0
         self.loop_Current: bool = False
         self.last_emotion: str = "neutral"
         self.next_idle_quirk_time: float = time.monotonic() + 8.0
+        self.speed_pct: float = 100.0
+        self.inverted: bool = False
 
         # Firmware OLED HUD Mode state
         self.display_mode: str = "face"  # "face" | "show_clock" | "cpuz" | "notification" | "navigation"
@@ -695,7 +761,7 @@ class MochiFacePlayer:
             face_name = random.choice(self.IDLE_MICRO_FACES)
             loop = False
         if face_name not in self.frames_map:
-            face_name = "mac_dinh"
+            face_name = self.default_face if self.default_face in self.frames_map else "mac_dinh"
         self.display_mode = "face"
         self.current_face = face_name
         self.frame_idx = 0
@@ -742,27 +808,36 @@ class MochiFacePlayer:
             self.mode_until_ts = 0.0
 
         if self.display_mode == "show_clock":
-            return self._render_clock_oled()
+            out = self._render_clock_oled()
+            return (1 - out) if self.inverted else out
         if self.display_mode == "cpuz":
-            return self._render_cpuz_oled()
+            out = self._render_cpuz_oled()
+            return (1 - out) if self.inverted else out
         if self.display_mode == "notification":
-            return self._render_notification_oled()
+            out = self._render_notification_oled()
+            return (1 - out) if self.inverted else out
         if self.display_mode == "navigation":
-            return self._render_navigation_oled()
+            out = self._render_navigation_oled()
+            return (1 - out) if self.inverted else out
+
+        base_idle_face = self.default_face if self.default_face in self.frames_map else "mac_dinh"
 
         if forced_face and forced_face in self.frames_map:
             self.set_face(forced_face, loop=True)
         else:
             if emotion != self.last_emotion:
                 self.last_emotion = emotion
-                candidates = self.EMOTION_TO_FACES.get(emotion, ["mac_dinh"])
-                chosen = random.choice(candidates)
+                if emotion == "neutral":
+                    chosen = base_idle_face
+                else:
+                    candidates = self.EMOTION_TO_FACES.get(emotion, [base_idle_face])
+                    chosen = random.choice(candidates)
                 self.set_face(chosen, loop=(emotion in ("neutral", "sleepy")))
                 self.next_idle_quirk_time = now + random.uniform(8.0, 14.0)
 
-            if state == "thinking" and self.current_face == "mac_dinh":
+            if state == "thinking" and self.current_face == base_idle_face:
                 self.set_face("dasai2", loop=True)
-            elif state == "listening" and self.current_face == "mac_dinh":
+            elif state == "listening" and self.current_face == base_idle_face:
                 self.set_face("nheo_mat", loop=True)
             elif state == "idle" and emotion == "neutral":
                 if self.current_face in ("mac_dinh", "nhin_ben_trai", "nhin_ben_phai", "nhin_xuong"):
@@ -773,7 +848,7 @@ class MochiFacePlayer:
                     elif gaze_y > 0.45:
                         self.set_face("nhin_xuong", loop=False)
 
-                if self.current_face == "mac_dinh" and now >= self.next_idle_quirk_time:
+                if self.current_face == base_idle_face and now >= self.next_idle_quirk_time:
                     quirk = random.choice(self.IDLE_MICRO_FACES)
                     self.set_face(quirk, loop=False)
                     self.next_idle_quirk_time = now + random.uniform(9.0, 15.0)
@@ -783,7 +858,8 @@ class MochiFacePlayer:
             return np.zeros((64, 128), dtype=np.uint8)
 
         delays = self.delays_map.get(self.current_face, [42] * len(frames))
-        self.frame_elapsed_ms += dt_sec * 1000.0
+        speed_mult = max(0.5, min(2.5, float(self.speed_pct or 100.0) / 100.0))
+        self.frame_elapsed_ms += dt_sec * 1000.0 * speed_mult
 
         cur_delay = delays[self.frame_idx] if self.frame_idx < len(delays) else 42
         if self.current_face == "mac_dinh" and self.frame_idx == 0:
@@ -796,11 +872,11 @@ class MochiFacePlayer:
                 if self.loop_Current:
                     self.frame_idx = 0
                 else:
-                    self.current_face = "mac_dinh"
+                    self.current_face = base_idle_face
                     self.loop_Current = True
                     self.frame_idx = 0
-                    frames = self.frames_map["mac_dinh"]
-                    delays = self.delays_map["mac_dinh"]
+                    frames = self.frames_map[base_idle_face]
+                    delays = self.delays_map[base_idle_face]
                     break
             cur_delay = delays[self.frame_idx] if self.frame_idx < len(delays) else 42
 
@@ -808,6 +884,9 @@ class MochiFacePlayer:
 
         if state == "speaking" or lip_energy > 0.06:
             frame = self._apply_oled_lipsync(frame, lip_energy, now)
+
+        if self.inverted:
+            frame = 1 - frame
 
         return frame
 

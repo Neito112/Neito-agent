@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "The Mochi ESP32-C3 Virtual USB-Serial Bridge",
+  "version": "4.3.2",
+  "description": "Tín hiệu cầu nối ESP32-C3 USB-Serial ảo giúp https://themochi.huykhong.com/thietlap/ nhận diện và cấu hình trực tiếp Mochi trên PC.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://themochi.huykhong.com/*",
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "js": ["mochi_serial_bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}

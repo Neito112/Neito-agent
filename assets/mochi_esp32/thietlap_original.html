@@ -1,0 +1,2484 @@
+
+
+
+<!DOCTYPE html>
+
+<html lang="vi" data-bs-theme="dark">
+
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>THE MOCHI WEB Controller</title>
+   <link rel="shortcut icon" href="/favicon.png" type="image/x-icon">
+   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+   <style>
+       body {
+           background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+           min-height: 100vh;
+           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+       }
+       
+       .glass-card {
+           background: rgba(255, 255, 255, 0.1);
+           backdrop-filter: blur(10px);
+           border: 1px solid rgba(255, 255, 255, 0.2);
+           border-radius: 15px;
+           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+       }
+       
+       .connect-container {
+           min-height: 100vh;
+           display: flex;
+           align-items: center;
+       }
+       
+       .logo-placeholder {
+           background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+           border-radius: 20px;
+           display: flex;
+           align-items: center;
+           justify-content: center;
+           color: white;
+           font-size: 2rem;
+           font-weight: bold;
+           text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+       }
+       
+       .btn-elegant {
+           background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+           border: none;
+           border-radius: 12px;
+           padding: 12px 30px;
+           font-weight: 600;
+           transition: all 0.3s ease;
+           box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+       }
+       
+       .btn-elegant:hover {
+           transform: translateY(-2px);
+           box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+       }
+       
+       .nav-pills .nav-link {
+           border-radius: 12px;
+           margin: 0 5px;
+           transition: all 0.3s ease;
+       }
+       
+       .nav-pills .nav-link.active {
+           background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+       }
+       
+       .form-control, .form-select {
+           background: rgba(255, 255, 255, 0.1);
+           border: 1px solid rgba(255, 255, 255, 0.2);
+           border-radius: 10px;
+           color: white;
+       }
+       
+       .form-control:focus, .form-select:focus {
+           background: rgba(255, 255, 255, 0.15);
+           border-color: #667eea;
+           box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+           color: white;
+       }
+       
+       .form-range::-webkit-slider-thumb {
+           background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+       }
+       .form-select option {
+           background-color: #212529 !important;
+           color: #ffffff !important;
+       }
+
+
+       .form-select option:hover {
+           background-color: #495057 !important;
+       }
+       .status-indicator {
+           width: 12px;
+           height: 12px;
+           border-radius: 50%;
+           display: inline-block;
+           margin-right: 8px;
+       }
+       
+       .status-connected {
+           background: #28a745;
+           box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+       }
+       
+       .status-disconnected {
+           background: #dc3545;
+           box-shadow: 0 0 10px rgba(220, 53, 69, 0.5);
+       }
+       
+       .fade-in {
+           animation: fadeIn 0.5s ease-in;
+       }
+       
+       @keyframes fadeIn {
+           from { opacity: 0; transform: translateY(20px); }
+           to { opacity: 1; transform: translateY(0); }
+       }
+       #loadingOverlay {
+           display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 9999; justify-content: center; align-items: center;
+       }
+       .supporter{display:none}
+   </style>
+   
+   <link rel="stylesheet" href="form.css" media="all">
+
+</head>
+
+<body>
+   <!-- Full-screen Loading Overlay -->
+   <div id="loadingOverlay" style="">
+       <div class="text-center text-white">
+           <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+               <span class="visually-hidden">Loading...</span>
+           </div>
+           <p class="mt-3">Đang kết nối...</p>
+       </div>
+   </div>
+
+
+   <!-- Connect Screen -->
+   <div id="connectScreen" class="connect-container">
+       <div class="container">
+           <div class="row align-items-center">
+               <!-- Left side - Connection -->
+               <div class="col-md-6">
+                   <div class="glass-card p-5">
+                       <div class="text-center mb-4">
+                           <img src="logo_mini.png" alt="">
+                       </div>
+                       
+                       <div class="d-flex justify-content-center">
+                           <button id="connectBtn" class="btn btn-elegant btn-lg">
+                               <i class="fas fa-plug me-2"></i>
+                               Kết nối ESP32
+                           </button>
+                       </div>
+                       
+                       <div id="connectionStatus" class="text-center mt-3" style="display: none;">
+                           <span class="status-indicator"></span>
+                           <span class="status-text"></span>
+                       </div>
+                   </div>
+               </div>
+               <div class="col-md-1">&nbsp;</div>
+               <!-- Right side - Logo -->
+               <div class="col-md-4">
+                   <img src="logo.png">
+               </div>
+           </div>
+       </div>
+   </div>
+
+
+   <!-- Main Controller -->
+   <div id="controllerScreen" style="display: none;" class="fade-in">
+       <nav class="navbar navbar-dark bg-dark shadow-sm">
+           <div class="container-fluid">
+               <span class="navbar-brand">
+                   <i class="fas fa-microchip me-2"></i>
+                   THE MOCHI WEB CONTROLLER
+               </span>
+               <div class="navbar-nav">
+                   <span id="connectionIndicator" class="nav-link">
+                       <span class="status-indicator status-connected"></span>
+                       Đã kết nối
+                   </span>
+
+               </div>
+           </div>
+       </nav>
+
+        <!-- Thêm MAC và License lên navbar -->
+        <div class="container-fluid mt-2 mb-2">
+            <div class="row">
+                <div class="col-auto">
+                    <span id="macAddress" class="badge bg-secondary"><i class="fas fa-network-wired me-1"></i>MAC: <span id="macValue">--</span></span>
+                </div>
+                <div class="col-auto">
+                    <span id="licenseStatus" class="badge bg-warning text-dark"><i class="fas fa-key me-1"></i>License: <span id="licenseValue">--</span></span>
+                </div>
+            </div>
+        </div>
+
+
+       <div class="container mt-4">
+           <!-- Navigation Tabs -->
+           <ul class="nav nav-pills justify-content-center mb-4" id="mainTabs">
+               <li class="nav-item">
+                   <a class="nav-link active" id="gif-tab" data-bs-toggle="pill" href="#gif-content">
+                       <i class="fas fa-image me-2"></i>Điều chỉnh GIF
+                   </a>
+               </li>
+               <li class="nav-item">
+                   <a class="nav-link" id="audio-tab" data-bs-toggle="pill" href="#audio-content">
+                       <i class="fas fa-volume-up me-2"></i>Điều chỉnh âm thanh
+                   </a>
+               </li>
+               <li class="nav-item" role="presentation">
+                   <button class="nav-link" id="chronos-tab" data-bs-toggle="tab" data-bs-target="#chronos" type="button" role="tab">
+                       <i class="fas fa-cog me-2"></i>Thiết lập Chronos
+                   </button>
+               </li>
+               <li class="nav-item">
+                   <a class="nav-link" id="hardware-tab" data-bs-toggle="pill" href="#hardware-content">
+                       <i class="fas fa-cog me-2"></i>Phần cứng
+                   </a>
+               </li>
+               <li class="nav-item">
+                   <a class="nav-link" id="credit-tab" data-bs-toggle="pill" href="#credit-content">
+                       <i class="fas fa-info-circle me-2"></i>SUPPORT PROJECT
+                   </a>
+               </li>
+           </ul>
+
+
+           <!-- Save and Default Buttons -->
+           <div class="text-center mb-4">                
+               <button id="resetBtn" class="btn btn-danger me-3"   
+                       data-bs-toggle="tooltip" 
+                       data-bs-placement="top" 
+                       data-bs-title="Reset nguồn MOCHI!">
+                   <i class="fas fa-power-off me-2"></i>RESET MOCHI
+               </button>
+               <button id="saveBtn" class="btn btn-elegant" 
+                       data-bs-toggle="tooltip" 
+                       data-bs-placement="top" 
+                       data-bs-title="Những thiết lập bạn chỉnh sẽ được gửi ngay đến Mochi nhưng phải lưu lại để sử dụng trong lần sau khi khởi động lại">
+                   <i class="fas fa-save me-2"></i>Lưu cài đặt
+               </button>
+
+
+           </div>
+
+
+           <!-- Tab Content -->
+           <div class="tab-content">
+               <!-- GIF Tab -->
+               <div class="tab-pane fade show active" id="gif-content">
+                   <div class="row">
+                       <div class="col-md-6">
+                           <div class="glass-card p-4 mb-4">
+                               <h5 class="text-white mb-3"><i class="fas fa-tachometer-alt me-2"></i>Cài đặt tốc độ</h5>
+                               
+                               <div class="mb-4">
+                                   <label for="gif_speed" class="form-label">Tốc độ GIF: <span id="gif_speedValue">-1</span></label>
+                                   <input type="range" class="form-range" id="gif_speed" min="50" max="200" value="0">
+                               </div>
+                               
+                               <div class="mb-4">
+                                   <label for="gif_delay" class="form-label">Delay giữa các GIF (giây): <span id="gif_delayValue">5</span></label>
+                                   <input type="range" class="form-range" id="gif_delay" min="0" max="60" value="5">
+                               </div>
+                           </div>
+                       </div>
+                       
+                       <div class="col-md-6">
+                           <div class="glass-card p-4 mb-4">
+                               <h5 class="text-white mb-3"><i class="fas fa-palette me-2"></i>Hiển thị</h5>
+                               
+                               <div class="form-check form-switch mb-3">
+                                   <input class="form-check-input" type="checkbox" id="isInverted">
+                                   <label class="form-check-label text-white" for="isInverted">
+                                       GIF âm bản
+                                   </label>
+                               </div>
+                               
+                               <div class="mb-3">
+                                   <label for="gif_default" class="form-label text-white">GIF Mặc định</label>
+                                   <select class="form-select" id="gif_default">
+                                       <option value="mac_dinh">Mặc định</option>
+                                                                                  <option value="gundam">Gundam</option>
+                                                                                  <option value="angry">Tanjiro</option>
+                                                                                  <option value="angry2">Pretentious</option>
+                                                                                  <option value="angry3">Purple Flame</option>
+                                                                                  <option value="aot">Titan</option>
+                                                                                  <option value="bee">Bee</option>
+                                                                                  <option value="cry">Crying Smile</option>
+                                                                                  <option value="cry2">Crying</option>
+                                                                                  <option value="cuoi_khinh_bi">Awkward Laugh</option>
+                                                                                  <option value="chong_mat">Rotation</option>
+                                                                                  <option value="dasai">Spray Paint</option>
+                                                                                  <option value="dasai2">Dasai</option>
+                                                                                  <option value="mac_dinh">Default</option>
+                                                                                  <option value="demon_slayer">Nezuko</option>
+                                                                                  <option value="den_giao_thong">Road Rage</option>
+                                                                                  <option value="den_pha">Headlights</option>
+                                                                                  <option value="devil">Cursed Smile</option>
+                                                                                  <option value="devil_2">Glitch</option>
+                                                                                  <option value="devil_eyes">GTR Rain</option>
+                                                                                  <option value="distracted">Distracted</option>
+                                                                                  <option value="egg">Cookie</option>
+                                                                                  <option value="gian_du">Angry</option>
+                                                                                  <option value="yakura">Yakura</option>
+                                                                                  <option value="hand_some">Banana</option>
+                                                                                  <option value="happy_2">Laugh</option>
+                                                                                  <option value="hat_xi">Sneeze</option>
+                                                                                  <option value="hat_xi_2">Big Sneeze</option>
+                                                                                  <option value="hehe">Smirk</option>
+                                                                                  <option value="intro">Title</option>
+                                                                                  <option value="keep_it_up">Keep it up</option>
+                                                                                  <option value="leu_leu">Raspberry</option>
+                                                                                  <option value="love">Love</option>
+                                                                                  <option value="love2">Dumb Love</option>
+                                                                                  <option value="mochi">Neon Sign</option>
+                                                                                  <option value="mochidoo">MECHA DOC</option>
+                                                                                  <option value="music">Music</option>
+                                                                                  <option value="neon">Neon</option>
+                                                                                  <option value="noname">Pinky</option>
+                                                                                  <option value="nheo_mat">Distracted 2</option>
+                                                                                  <option value="nhin_ben_phai">Nhìn phải</option>
+                                                                                  <option value="nhin_ben_trai">Nhìn trái</option>
+                                                                                  <option value="nhin_xuong">Look down</option>
+                                                                                  <option value="police">Police</option>
+                                                                                  <option value="pong">Pong</option>
+                                                                                  <option value="rain">Rain</option>
+                                                                                  <option value="sakura">Sakura</option>
+                                                                                  <option value="samurai">Blade</option>
+                                                                                  <option value="scared">Accel</option>
+                                                                                  <option value="sleepy">Sleepy</option>
+                                                                                  <option value="smile">Smile</option>
+                                                                                  <option value="speed">Revs</option>
+                                                                                  <option value="star">Stars</option>
+                                                                                  <option value="sung_nuoc">Hadouken Miss</option>
+                                                                                  <option value="sung_nuoc_2">Hadouken Hit</option>
+                                                                                  <option value="sushi">Sushi</option>
+                                                                                  <option value="turbo">Turbo</option>
+                                                                                  <option value="thong_long">Tsurikawa</option>
+                                                                                  <option value="thu_nho">Breaking</option>
+                                                                                  <option value="up_size_down">Upside down</option>
+                                                                                  <option value="UwU">UwU</option>
+                                                                                  <option value="wheels">Equip</option>
+                                                                                  <option value="xi_khoi">Nose Smoke</option>
+                                                                                  <option value="xi_lua">Nose Fire</option>
+                                                                                  <option value="speed2">Speed 2</option>
+                                                                                  <option value="yelling">Yelling</option>
+                                                                                  <option value="car">Car</option>
+                                                                                  <option value="intro_3">Intro 3</option>
+                                                                                  <option value="LB">LB</option>
+                                                                                  <option value="LB_intro">LB Intro</option>
+                                                                                  <option value="LB_star">LB Star</option>
+                                                                                  <option value="speed3">Speed 3</option>
+                                                                          </select>
+                               </div>
+
+                               <div class="mb-3">
+                                   <label for="gif_intro" class="form-label text-white">GIF Intro</label>
+                                   <select class="form-select" id="gif_intro">
+                                                                                  <option value="gundam">Gundam</option>
+                                                                                  <option value="angry">Tanjiro</option>
+                                                                                  <option value="angry2">Pretentious</option>
+                                                                                  <option value="angry3">Purple Flame</option>
+                                                                                  <option value="aot">Titan</option>
+                                                                                  <option value="bee">Bee</option>
+                                                                                  <option value="cry">Crying Smile</option>
+                                                                                  <option value="cry2">Crying</option>
+                                                                                  <option value="cuoi_khinh_bi">Awkward Laugh</option>
+                                                                                  <option value="chong_mat">Rotation</option>
+                                                                                  <option value="dasai">Spray Paint</option>
+                                                                                  <option value="dasai2">Dasai</option>
+                                                                                  <option value="mac_dinh">Default</option>
+                                                                                  <option value="demon_slayer">Nezuko</option>
+                                                                                  <option value="den_giao_thong">Road Rage</option>
+                                                                                  <option value="den_pha">Headlights</option>
+                                                                                  <option value="devil">Cursed Smile</option>
+                                                                                  <option value="devil_2">Glitch</option>
+                                                                                  <option value="devil_eyes">GTR Rain</option>
+                                                                                  <option value="distracted">Distracted</option>
+                                                                                  <option value="egg">Cookie</option>
+                                                                                  <option value="gian_du">Angry</option>
+                                                                                  <option value="yakura">Yakura</option>
+                                                                                  <option value="hand_some">Banana</option>
+                                                                                  <option value="happy_2">Laugh</option>
+                                                                                  <option value="hat_xi">Sneeze</option>
+                                                                                  <option value="hat_xi_2">Big Sneeze</option>
+                                                                                  <option value="hehe">Smirk</option>
+                                                                                  <option value="intro">Title</option>
+                                                                                  <option value="keep_it_up">Keep it up</option>
+                                                                                  <option value="leu_leu">Raspberry</option>
+                                                                                  <option value="love">Love</option>
+                                                                                  <option value="love2">Dumb Love</option>
+                                                                                  <option value="mochi">Neon Sign</option>
+                                                                                  <option value="mochidoo">MECHA DOC</option>
+                                                                                  <option value="music">Music</option>
+                                                                                  <option value="neon">Neon</option>
+                                                                                  <option value="noname">Pinky</option>
+                                                                                  <option value="nheo_mat">Distracted 2</option>
+                                                                                  <option value="nhin_ben_phai">Nhìn phải</option>
+                                                                                  <option value="nhin_ben_trai">Nhìn trái</option>
+                                                                                  <option value="nhin_xuong">Look down</option>
+                                                                                  <option value="police">Police</option>
+                                                                                  <option value="pong">Pong</option>
+                                                                                  <option value="rain">Rain</option>
+                                                                                  <option value="sakura">Sakura</option>
+                                                                                  <option value="samurai">Blade</option>
+                                                                                  <option value="scared">Accel</option>
+                                                                                  <option value="sleepy">Sleepy</option>
+                                                                                  <option value="smile">Smile</option>
+                                                                                  <option value="speed">Revs</option>
+                                                                                  <option value="star">Stars</option>
+                                                                                  <option value="sung_nuoc">Hadouken Miss</option>
+                                                                                  <option value="sung_nuoc_2">Hadouken Hit</option>
+                                                                                  <option value="sushi">Sushi</option>
+                                                                                  <option value="turbo">Turbo</option>
+                                                                                  <option value="thong_long">Tsurikawa</option>
+                                                                                  <option value="thu_nho">Breaking</option>
+                                                                                  <option value="up_size_down">Upside down</option>
+                                                                                  <option value="UwU">UwU</option>
+                                                                                  <option value="wheels">Equip</option>
+                                                                                  <option value="xi_khoi">Nose Smoke</option>
+                                                                                  <option value="xi_lua">Nose Fire</option>
+                                                                                  <option value="speed2">Speed 2</option>
+                                                                                  <option value="yelling">Yelling</option>
+                                                                                  <option value="car">Car</option>
+                                                                                  <option value="intro_3">Intro 3</option>
+                                                                                  <option value="LB">LB</option>
+                                                                                  <option value="LB_intro">LB Intro</option>
+                                                                                  <option value="LB_star">LB Star</option>
+                                                                                  <option value="speed3">Speed 3</option>
+                                                                          </select>
+                               </div>
+                               
+                               <div class="mb-3">
+                                   <label for="gif_touch" class="form-label text-white">GIF Touch (Chạm 1 lần)</label>
+                                   <select class="form-select" id="gif_touch">
+                                       <option value="show_clock">Ẩn/Hiện đồng hồ</option>
+                                       <option value="bluetooth">Bật/tắt Bluetooth</option>
+                                       <option value="next_gif">Chuyển hoạt ảnh tiếp theo</option>
+                                                                                  <option value="gundam">Gundam</option>
+                                                                                  <option value="angry">Tanjiro</option>
+                                                                                  <option value="angry2">Pretentious</option>
+                                                                                  <option value="angry3">Purple Flame</option>
+                                                                                  <option value="aot">Titan</option>
+                                                                                  <option value="bee">Bee</option>
+                                                                                  <option value="cry">Crying Smile</option>
+                                                                                  <option value="cry2">Crying</option>
+                                                                                  <option value="cuoi_khinh_bi">Awkward Laugh</option>
+                                                                                  <option value="chong_mat">Rotation</option>
+                                                                                  <option value="dasai">Spray Paint</option>
+                                                                                  <option value="dasai2">Dasai</option>
+                                                                                  <option value="mac_dinh">Default</option>
+                                                                                  <option value="demon_slayer">Nezuko</option>
+                                                                                  <option value="den_giao_thong">Road Rage</option>
+                                                                                  <option value="den_pha">Headlights</option>
+                                                                                  <option value="devil">Cursed Smile</option>
+                                                                                  <option value="devil_2">Glitch</option>
+                                                                                  <option value="devil_eyes">GTR Rain</option>
+                                                                                  <option value="distracted">Distracted</option>
+                                                                                  <option value="egg">Cookie</option>
+                                                                                  <option value="gian_du">Angry</option>
+                                                                                  <option value="yakura">Yakura</option>
+                                                                                  <option value="hand_some">Banana</option>
+                                                                                  <option value="happy_2">Laugh</option>
+                                                                                  <option value="hat_xi">Sneeze</option>
+                                                                                  <option value="hat_xi_2">Big Sneeze</option>
+                                                                                  <option value="hehe">Smirk</option>
+                                                                                  <option value="intro">Title</option>
+                                                                                  <option value="keep_it_up">Keep it up</option>
+                                                                                  <option value="leu_leu">Raspberry</option>
+                                                                                  <option value="love">Love</option>
+                                                                                  <option value="love2">Dumb Love</option>
+                                                                                  <option value="mochi">Neon Sign</option>
+                                                                                  <option value="mochidoo">MECHA DOC</option>
+                                                                                  <option value="music">Music</option>
+                                                                                  <option value="neon">Neon</option>
+                                                                                  <option value="noname">Pinky</option>
+                                                                                  <option value="nheo_mat">Distracted 2</option>
+                                                                                  <option value="nhin_ben_phai">Nhìn phải</option>
+                                                                                  <option value="nhin_ben_trai">Nhìn trái</option>
+                                                                                  <option value="nhin_xuong">Look down</option>
+                                                                                  <option value="police">Police</option>
+                                                                                  <option value="pong">Pong</option>
+                                                                                  <option value="rain">Rain</option>
+                                                                                  <option value="sakura">Sakura</option>
+                                                                                  <option value="samurai">Blade</option>
+                                                                                  <option value="scared">Accel</option>
+                                                                                  <option value="sleepy">Sleepy</option>
+                                                                                  <option value="smile">Smile</option>
+                                                                                  <option value="speed">Revs</option>
+                                                                                  <option value="star">Stars</option>
+                                                                                  <option value="sung_nuoc">Hadouken Miss</option>
+                                                                                  <option value="sung_nuoc_2">Hadouken Hit</option>
+                                                                                  <option value="sushi">Sushi</option>
+                                                                                  <option value="turbo">Turbo</option>
+                                                                                  <option value="thong_long">Tsurikawa</option>
+                                                                                  <option value="thu_nho">Breaking</option>
+                                                                                  <option value="up_size_down">Upside down</option>
+                                                                                  <option value="UwU">UwU</option>
+                                                                                  <option value="wheels">Equip</option>
+                                                                                  <option value="xi_khoi">Nose Smoke</option>
+                                                                                  <option value="xi_lua">Nose Fire</option>
+                                                                                  <option value="speed2">Speed 2</option>
+                                                                                  <option value="yelling">Yelling</option>
+                                                                                  <option value="car">Car</option>
+                                                                                  <option value="intro_3">Intro 3</option>
+                                                                                  <option value="LB">LB</option>
+                                                                                  <option value="LB_intro">LB Intro</option>
+                                                                                  <option value="LB_star">LB Star</option>
+                                                                                  <option value="speed3">Speed 3</option>
+                                                                          </select>
+                               </div>
+                               <div class="mb-3">
+                                   <label for="gif_double_touch" class="form-label text-white">GIF Double Touch (Chạm 2 lần)</label>
+                                   <select class="form-select" id="gif_double_touch">
+                                       <option value="show_clock">Ẩn/Hiện đồng hồ</option>
+                                       <option value="bluetooth">Bật/tắt Bluetooth</option>
+                                       <option value="next_gif">Chuyển hoạt ảnh tiếp theo</option>
+                                                                                  <option value="gundam">Gundam</option>
+                                                                                  <option value="angry">Tanjiro</option>
+                                                                                  <option value="angry2">Pretentious</option>
+                                                                                  <option value="angry3">Purple Flame</option>
+                                                                                  <option value="aot">Titan</option>
+                                                                                  <option value="bee">Bee</option>
+                                                                                  <option value="cry">Crying Smile</option>
+                                                                                  <option value="cry2">Crying</option>
+                                                                                  <option value="cuoi_khinh_bi">Awkward Laugh</option>
+                                                                                  <option value="chong_mat">Rotation</option>
+                                                                                  <option value="dasai">Spray Paint</option>
+                                                                                  <option value="dasai2">Dasai</option>
+                                                                                  <option value="mac_dinh">Default</option>
+                                                                                  <option value="demon_slayer">Nezuko</option>
+                                                                                  <option value="den_giao_thong">Road Rage</option>
+                                                                                  <option value="den_pha">Headlights</option>
+                                                                                  <option value="devil">Cursed Smile</option>
+                                                                                  <option value="devil_2">Glitch</option>
+                                                                                  <option value="devil_eyes">GTR Rain</option>
+                                                                                  <option value="distracted">Distracted</option>
+                                                                                  <option value="egg">Cookie</option>
+                                                                                  <option value="gian_du">Angry</option>
+                                                                                  <option value="yakura">Yakura</option>
+                                                                                  <option value="hand_some">Banana</option>
+                                                                                  <option value="happy_2">Laugh</option>
+                                                                                  <option value="hat_xi">Sneeze</option>
+                                                                                  <option value="hat_xi_2">Big Sneeze</option>
+                                                                                  <option value="hehe">Smirk</option>
+                                                                                  <option value="intro">Title</option>
+                                                                                  <option value="keep_it_up">Keep it up</option>
+                                                                                  <option value="leu_leu">Raspberry</option>
+                                                                                  <option value="love">Love</option>
+                                                                                  <option value="love2">Dumb Love</option>
+                                                                                  <option value="mochi">Neon Sign</option>
+                                                                                  <option value="mochidoo">MECHA DOC</option>
+                                                                                  <option value="music">Music</option>
+                                                                                  <option value="neon">Neon</option>
+                                                                                  <option value="noname">Pinky</option>
+                                                                                  <option value="nheo_mat">Distracted 2</option>
+                                                                                  <option value="nhin_ben_phai">Nhìn phải</option>
+                                                                                  <option value="nhin_ben_trai">Nhìn trái</option>
+                                                                                  <option value="nhin_xuong">Look down</option>
+                                                                                  <option value="police">Police</option>
+                                                                                  <option value="pong">Pong</option>
+                                                                                  <option value="rain">Rain</option>
+                                                                                  <option value="sakura">Sakura</option>
+                                                                                  <option value="samurai">Blade</option>
+                                                                                  <option value="scared">Accel</option>
+                                                                                  <option value="sleepy">Sleepy</option>
+                                                                                  <option value="smile">Smile</option>
+                                                                                  <option value="speed">Revs</option>
+                                                                                  <option value="star">Stars</option>
+                                                                                  <option value="sung_nuoc">Hadouken Miss</option>
+                                                                                  <option value="sung_nuoc_2">Hadouken Hit</option>
+                                                                                  <option value="sushi">Sushi</option>
+                                                                                  <option value="turbo">Turbo</option>
+                                                                                  <option value="thong_long">Tsurikawa</option>
+                                                                                  <option value="thu_nho">Breaking</option>
+                                                                                  <option value="up_size_down">Upside down</option>
+                                                                                  <option value="UwU">UwU</option>
+                                                                                  <option value="wheels">Equip</option>
+                                                                                  <option value="xi_khoi">Nose Smoke</option>
+                                                                                  <option value="xi_lua">Nose Fire</option>
+                                                                                  <option value="speed2">Speed 2</option>
+                                                                                  <option value="yelling">Yelling</option>
+                                                                                  <option value="car">Car</option>
+                                                                                  <option value="intro_3">Intro 3</option>
+                                                                                  <option value="LB">LB</option>
+                                                                                  <option value="LB_intro">LB Intro</option>
+                                                                                  <option value="LB_star">LB Star</option>
+                                                                                  <option value="speed3">Speed 3</option>
+                                                                          </select>
+                               </div>
+                               <div class="mb-3">
+                                   <label for="gif_long_touch" class="form-label text-white">GIF Long Touch (Giữ lâu)</label>
+                                   <select class="form-select" id="gif_long_touch">
+                                       <option value="show_clock">Ẩn/Hiện đồng hồ</option>
+                                       <option value="bluetooth">Bật/tắt Bluetooth</option>
+                                       <option value="next_gif">Chuyển hoạt ảnh tiếp theo</option>
+                                                                                 <option value="gundam">Gundam</option>
+                                                                                 <option value="angry">Tanjiro</option>
+                                                                                 <option value="angry2">Pretentious</option>
+                                                                                 <option value="angry3">Purple Flame</option>
+                                                                                 <option value="aot">Titan</option>
+                                                                                 <option value="bee">Bee</option>
+                                                                                 <option value="cry">Crying Smile</option>
+                                                                                 <option value="cry2">Crying</option>
+                                                                                 <option value="cuoi_khinh_bi">Awkward Laugh</option>
+                                                                                 <option value="chong_mat">Rotation</option>
+                                                                                 <option value="dasai">Spray Paint</option>
+                                                                                 <option value="dasai2">Dasai</option>
+                                                                                 <option value="mac_dinh">Default</option>
+                                                                                 <option value="demon_slayer">Nezuko</option>
+                                                                                 <option value="den_giao_thong">Road Rage</option>
+                                                                                 <option value="den_pha">Headlights</option>
+                                                                                 <option value="devil">Cursed Smile</option>
+                                                                                 <option value="devil_2">Glitch</option>
+                                                                                 <option value="devil_eyes">GTR Rain</option>
+                                                                                 <option value="distracted">Distracted</option>
+                                                                                 <option value="egg">Cookie</option>
+                                                                                 <option value="gian_du">Angry</option>
+                                                                                 <option value="yakura">Yakura</option>
+                                                                                 <option value="hand_some">Banana</option>
+                                                                                 <option value="happy_2">Laugh</option>
+                                                                                 <option value="hat_xi">Sneeze</option>
+                                                                                 <option value="hat_xi_2">Big Sneeze</option>
+                                                                                 <option value="hehe">Smirk</option>
+                                                                                 <option value="intro">Title</option>
+                                                                                 <option value="keep_it_up">Keep it up</option>
+                                                                                 <option value="leu_leu">Raspberry</option>
+                                                                                 <option value="love">Love</option>
+                                                                                 <option value="love2">Dumb Love</option>
+                                                                                 <option value="mochi">Neon Sign</option>
+                                                                                 <option value="mochidoo">MECHA DOC</option>
+                                                                                 <option value="music">Music</option>
+                                                                                 <option value="neon">Neon</option>
+                                                                                 <option value="noname">Pinky</option>
+                                                                                 <option value="nheo_mat">Distracted 2</option>
+                                                                                 <option value="nhin_ben_phai">Nhìn phải</option>
+                                                                                 <option value="nhin_ben_trai">Nhìn trái</option>
+                                                                                 <option value="nhin_xuong">Look down</option>
+                                                                                 <option value="police">Police</option>
+                                                                                 <option value="pong">Pong</option>
+                                                                                 <option value="rain">Rain</option>
+                                                                                 <option value="sakura">Sakura</option>
+                                                                                 <option value="samurai">Blade</option>
+                                                                                 <option value="scared">Accel</option>
+                                                                                 <option value="sleepy">Sleepy</option>
+                                                                                 <option value="smile">Smile</option>
+                                                                                 <option value="speed">Revs</option>
+                                                                                 <option value="star">Stars</option>
+                                                                                 <option value="sung_nuoc">Hadouken Miss</option>
+                                                                                 <option value="sung_nuoc_2">Hadouken Hit</option>
+                                                                                 <option value="sushi">Sushi</option>
+                                                                                 <option value="turbo">Turbo</option>
+                                                                                 <option value="thong_long">Tsurikawa</option>
+                                                                                 <option value="thu_nho">Breaking</option>
+                                                                                 <option value="up_size_down">Upside down</option>
+                                                                                 <option value="UwU">UwU</option>
+                                                                                 <option value="wheels">Equip</option>
+                                                                                 <option value="xi_khoi">Nose Smoke</option>
+                                                                                 <option value="xi_lua">Nose Fire</option>
+                                                                                 <option value="speed2">Speed 2</option>
+                                                                                 <option value="yelling">Yelling</option>
+                                                                                 <option value="car">Car</option>
+                                                                                 <option value="intro_3">Intro 3</option>
+                                                                                 <option value="LB">LB</option>
+                                                                                 <option value="LB_intro">LB Intro</option>
+                                                                                 <option value="LB_star">LB Star</option>
+                                                                                 <option value="speed3">Speed 3</option>
+                                                                          </select>   
+                               </div>
+                           </div>
+                       </div>
+                   </div>
+                   
+                   <div class="glass-card p-4">
+                       <h5 class="text-white mb-3"><i class="fas fa-list me-2"></i>Danh sách GIF</h5>                        
+                        <div class="mb-3">
+                           <button id="selectAllGifs" class="btn btn-outline-secondary btn-sm me-2">
+                               <i class="fas fa-check-double me-2"></i>Chọn tất cả
+                           </button>
+                           <button id="deselectAllGifs" class="btn btn-outline-secondary btn-sm">
+                               <i class="fas fa-times me-2"></i>Bỏ chọn tất cả
+                           </button>
+                       </div>
+
+
+                       <div class="row" id="gifList">
+                                                              <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Gundam.png');" for="gif0">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif0" id="gif0" data-index="0" data-name="gif0">
+                                           <label class="form-check-label text-white" for="gif0">
+                                               Gundam                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Tanjiro.png');" for="gif1">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif1" id="gif1" data-index="1" data-name="gif1">
+                                           <label class="form-check-label text-white" for="gif1">
+                                               Tanjiro                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Pretentious.png');" for="gif2">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif2" id="gif2" data-index="2" data-name="gif2">
+                                           <label class="form-check-label text-white" for="gif2">
+                                               Pretentious                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Purple Flame.png');" for="gif3">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif3" id="gif3" data-index="3" data-name="gif3">
+                                           <label class="form-check-label text-white" for="gif3">
+                                               Purple Flame                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Titan.png');" for="gif4">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif4" id="gif4" data-index="4" data-name="gif4">
+                                           <label class="form-check-label text-white" for="gif4">
+                                               Titan                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Bee.png');" for="gif5">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif5" id="gif5" data-index="5" data-name="gif5">
+                                           <label class="form-check-label text-white" for="gif5">
+                                               Bee                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Crying Smile.png');" for="gif6">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif6" id="gif6" data-index="6" data-name="gif6">
+                                           <label class="form-check-label text-white" for="gif6">
+                                               Crying Smile                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Crying.png');" for="gif7">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif7" id="gif7" data-index="7" data-name="gif7">
+                                           <label class="form-check-label text-white" for="gif7">
+                                               Crying                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Awkward Laugh.png');" for="gif8">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif8" id="gif8" data-index="8" data-name="gif8">
+                                           <label class="form-check-label text-white" for="gif8">
+                                               Awkward Laugh                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Rotation.png');" for="gif9">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif9" id="gif9" data-index="9" data-name="gif9">
+                                           <label class="form-check-label text-white" for="gif9">
+                                               Rotation                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Spray Paint.png');" for="gif10">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif10" id="gif10" data-index="10" data-name="gif10">
+                                           <label class="form-check-label text-white" for="gif10">
+                                               Spray Paint                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Dasai.png');" for="gif11">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif11" id="gif11" data-index="11" data-name="gif11">
+                                           <label class="form-check-label text-white" for="gif11">
+                                               Dasai                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Default.png');" for="gif12">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif12" id="gif12" data-index="12" data-name="gif12">
+                                           <label class="form-check-label text-white" for="gif12">
+                                               Default                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Nezuko.png');" for="gif13">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif13" id="gif13" data-index="13" data-name="gif13">
+                                           <label class="form-check-label text-white" for="gif13">
+                                               Nezuko                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Road Rage.png');" for="gif14">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif14" id="gif14" data-index="14" data-name="gif14">
+                                           <label class="form-check-label text-white" for="gif14">
+                                               Road Rage                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Headlights.png');" for="gif15">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif15" id="gif15" data-index="15" data-name="gif15">
+                                           <label class="form-check-label text-white" for="gif15">
+                                               Headlights                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Cursed Smile.png');" for="gif16">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif16" id="gif16" data-index="16" data-name="gif16">
+                                           <label class="form-check-label text-white" for="gif16">
+                                               Cursed Smile                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Glitch.png');" for="gif17">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif17" id="gif17" data-index="17" data-name="gif17">
+                                           <label class="form-check-label text-white" for="gif17">
+                                               Glitch                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/GTR Rain.png');" for="gif18">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif18" id="gif18" data-index="18" data-name="gif18">
+                                           <label class="form-check-label text-white" for="gif18">
+                                               GTR Rain                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Distracted.png');" for="gif19">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif19" id="gif19" data-index="19" data-name="gif19">
+                                           <label class="form-check-label text-white" for="gif19">
+                                               Distracted                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Cookie.png');" for="gif20">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif20" id="gif20" data-index="20" data-name="gif20">
+                                           <label class="form-check-label text-white" for="gif20">
+                                               Cookie                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Angry.png');" for="gif21">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif21" id="gif21" data-index="21" data-name="gif21">
+                                           <label class="form-check-label text-white" for="gif21">
+                                               Angry                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Yakura.png');" for="gif22">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif22" id="gif22" data-index="22" data-name="gif22">
+                                           <label class="form-check-label text-white" for="gif22">
+                                               Yakura                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Banana.png');" for="gif23">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif23" id="gif23" data-index="23" data-name="gif23">
+                                           <label class="form-check-label text-white" for="gif23">
+                                               Banana                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Laugh.png');" for="gif24">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif24" id="gif24" data-index="24" data-name="gif24">
+                                           <label class="form-check-label text-white" for="gif24">
+                                               Laugh                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Sneeze.png');" for="gif25">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif25" id="gif25" data-index="25" data-name="gif25">
+                                           <label class="form-check-label text-white" for="gif25">
+                                               Sneeze                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Big Sneeze.png');" for="gif26">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif26" id="gif26" data-index="26" data-name="gif26">
+                                           <label class="form-check-label text-white" for="gif26">
+                                               Big Sneeze                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Smirk.png');" for="gif27">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif27" id="gif27" data-index="27" data-name="gif27">
+                                           <label class="form-check-label text-white" for="gif27">
+                                               Smirk                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Title.png');" for="gif28">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif28" id="gif28" data-index="28" data-name="gif28">
+                                           <label class="form-check-label text-white" for="gif28">
+                                               Title                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Keep it up.png');" for="gif29">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif29" id="gif29" data-index="29" data-name="gif29">
+                                           <label class="form-check-label text-white" for="gif29">
+                                               Keep it up                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Raspberry.png');" for="gif30">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif30" id="gif30" data-index="30" data-name="gif30">
+                                           <label class="form-check-label text-white" for="gif30">
+                                               Raspberry                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Love.png');" for="gif31">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif31" id="gif31" data-index="31" data-name="gif31">
+                                           <label class="form-check-label text-white" for="gif31">
+                                               Love                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Dumb Love.png');" for="gif32">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif32" id="gif32" data-index="32" data-name="gif32">
+                                           <label class="form-check-label text-white" for="gif32">
+                                               Dumb Love                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Neon Sign.png');" for="gif33">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif33" id="gif33" data-index="33" data-name="gif33">
+                                           <label class="form-check-label text-white" for="gif33">
+                                               Neon Sign                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/MECHA DOC.png');" for="gif34">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif34" id="gif34" data-index="34" data-name="gif34">
+                                           <label class="form-check-label text-white" for="gif34">
+                                               MECHA DOC                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Music.png');" for="gif35">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif35" id="gif35" data-index="35" data-name="gif35">
+                                           <label class="form-check-label text-white" for="gif35">
+                                               Music                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Neon.png');" for="gif36">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif36" id="gif36" data-index="36" data-name="gif36">
+                                           <label class="form-check-label text-white" for="gif36">
+                                               Neon                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Pinky.png');" for="gif37">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif37" id="gif37" data-index="37" data-name="gif37">
+                                           <label class="form-check-label text-white" for="gif37">
+                                               Pinky                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Distracted 2.png');" for="gif38">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif38" id="gif38" data-index="38" data-name="gif38">
+                                           <label class="form-check-label text-white" for="gif38">
+                                               Distracted 2                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Nhìn phải.png');" for="gif39">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif39" id="gif39" data-index="39" data-name="gif39">
+                                           <label class="form-check-label text-white" for="gif39">
+                                               Nhìn phải                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Nhìn trái.png');" for="gif40">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif40" id="gif40" data-index="40" data-name="gif40">
+                                           <label class="form-check-label text-white" for="gif40">
+                                               Nhìn trái                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Look down.png');" for="gif41">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif41" id="gif41" data-index="41" data-name="gif41">
+                                           <label class="form-check-label text-white" for="gif41">
+                                               Look down                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Police.png');" for="gif42">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif42" id="gif42" data-index="42" data-name="gif42">
+                                           <label class="form-check-label text-white" for="gif42">
+                                               Police                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Pong.png');" for="gif43">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif43" id="gif43" data-index="43" data-name="gif43">
+                                           <label class="form-check-label text-white" for="gif43">
+                                               Pong                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Rain.png');" for="gif44">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif44" id="gif44" data-index="44" data-name="gif44">
+                                           <label class="form-check-label text-white" for="gif44">
+                                               Rain                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Sakura.png');" for="gif45">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif45" id="gif45" data-index="45" data-name="gif45">
+                                           <label class="form-check-label text-white" for="gif45">
+                                               Sakura                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Blade.png');" for="gif46">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif46" id="gif46" data-index="46" data-name="gif46">
+                                           <label class="form-check-label text-white" for="gif46">
+                                               Blade                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Accel.png');" for="gif47">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif47" id="gif47" data-index="47" data-name="gif47">
+                                           <label class="form-check-label text-white" for="gif47">
+                                               Accel                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Sleepy.png');" for="gif48">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif48" id="gif48" data-index="48" data-name="gif48">
+                                           <label class="form-check-label text-white" for="gif48">
+                                               Sleepy                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Smile.png');" for="gif49">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif49" id="gif49" data-index="49" data-name="gif49">
+                                           <label class="form-check-label text-white" for="gif49">
+                                               Smile                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Revs.png');" for="gif50">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif50" id="gif50" data-index="50" data-name="gif50">
+                                           <label class="form-check-label text-white" for="gif50">
+                                               Revs                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Stars.png');" for="gif51">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif51" id="gif51" data-index="51" data-name="gif51">
+                                           <label class="form-check-label text-white" for="gif51">
+                                               Stars                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Hadouken Miss.png');" for="gif52">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif52" id="gif52" data-index="52" data-name="gif52">
+                                           <label class="form-check-label text-white" for="gif52">
+                                               Hadouken Miss                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Hadouken Hit.png');" for="gif53">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif53" id="gif53" data-index="53" data-name="gif53">
+                                           <label class="form-check-label text-white" for="gif53">
+                                               Hadouken Hit                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Sushi.png');" for="gif54">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif54" id="gif54" data-index="54" data-name="gif54">
+                                           <label class="form-check-label text-white" for="gif54">
+                                               Sushi                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Turbo.png');" for="gif55">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif55" id="gif55" data-index="55" data-name="gif55">
+                                           <label class="form-check-label text-white" for="gif55">
+                                               Turbo                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Tsurikawa.png');" for="gif56">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif56" id="gif56" data-index="56" data-name="gif56">
+                                           <label class="form-check-label text-white" for="gif56">
+                                               Tsurikawa                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Breaking.png');" for="gif57">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif57" id="gif57" data-index="57" data-name="gif57">
+                                           <label class="form-check-label text-white" for="gif57">
+                                               Breaking                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Upside down.png');" for="gif58">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif58" id="gif58" data-index="58" data-name="gif58">
+                                           <label class="form-check-label text-white" for="gif58">
+                                               Upside down                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/UwU.png');" for="gif59">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif59" id="gif59" data-index="59" data-name="gif59">
+                                           <label class="form-check-label text-white" for="gif59">
+                                               UwU                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Equip.png');" for="gif60">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif60" id="gif60" data-index="60" data-name="gif60">
+                                           <label class="form-check-label text-white" for="gif60">
+                                               Equip                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Nose Smoke.png');" for="gif61">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif61" id="gif61" data-index="61" data-name="gif61">
+                                           <label class="form-check-label text-white" for="gif61">
+                                               Nose Smoke                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Nose Fire.png');" for="gif62">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif62" id="gif62" data-index="62" data-name="gif62">
+                                           <label class="form-check-label text-white" for="gif62">
+                                               Nose Fire                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Speed 2.png');" for="gif63">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif63" id="gif63" data-index="63" data-name="gif63">
+                                           <label class="form-check-label text-white" for="gif63">
+                                               Speed 2                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Yelling.png');" for="gif64">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif64" id="gif64" data-index="64" data-name="gif64">
+                                           <label class="form-check-label text-white" for="gif64">
+                                               Yelling                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Car.png');" for="gif65">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif65" id="gif65" data-index="65" data-name="gif65">
+                                           <label class="form-check-label text-white" for="gif65">
+                                               Car                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Intro 3.png');" for="gif66">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif66" id="gif66" data-index="66" data-name="gif66">
+                                           <label class="form-check-label text-white" for="gif66">
+                                               Intro 3                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/LB.png');" for="gif67">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif67" id="gif67" data-index="67" data-name="gif67">
+                                           <label class="form-check-label text-white" for="gif67">
+                                               LB                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/LB Intro.png');" for="gif68">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif68" id="gif68" data-index="68" data-name="gif68">
+                                           <label class="form-check-label text-white" for="gif68">
+                                               LB Intro                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/LB Star.png');" for="gif69">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif69" id="gif69" data-index="69" data-name="gif69">
+                                           <label class="form-check-label text-white" for="gif69">
+                                               LB Star                                           </label>
+                                       </label>
+                                   </div>
+                                                                  <div class="col-md-2 mb-2">
+                                       <label class="form-check image-bg " style="background-image: url('assets/Speed 3.png');" for="gif70">
+                                           <input class="form-check-input gif-checkbox" type="checkbox"
+                                               value="gif70" id="gif70" data-index="70" data-name="gif70">
+                                           <label class="form-check-label text-white" for="gif70">
+                                               Speed 3                                           </label>
+                                       </label>
+                                   </div>
+                                                      </div>
+                   </div>
+                   <div class="text-center mt-4">
+                       <button class="btn btn-outline-info defaultBtn" data-set="1"
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               data-bs-title="Trả về mặc định thiết lập GIF, nhớ lưu cài đặt">
+                           <i class="fas fa-sync me-2"></i>Về mặc định
+                       </button>
+                   </div>
+               </div>
+
+
+               <!-- Audio Tab -->
+               <div class="tab-pane fade" id="audio-content">
+                   <h4><a href="music.html" class="btn btn-primary mb-3" target="_blank"><i class="fas fa-music me-2"></i>Công cụ soạn nhạc</a></h4>                
+                   <div class="glass-card p-4 mb-3">Để sử dụng âm thanh trong thẻ nhớ, đưa file wav (định dạng 8-16bit) vào thư mục gifs trong thẻ nhớ sau đó điền đầy đủ đường dẫn, ví dụ <code>/gifs/angry/sound.wav</code> hoặc <code>/gifs/thienlyoi.wav</code> </div>
+                   <div class="glass-card p-4 mb-3">Promt để AI soạn nhạc cho bạn: <code>Sử dụng format dạng: "Note duration rest (ví dụ: C4 100 20 D4S 100 20 A4S 100 20), hãy soạn cho tôi bài hát .... ; ghi liền mạch không xuống dòng</code></div>
+                   <div class="row">
+                       <div class="col-md-6">
+                           <div class="glass-card p-4">
+                               <h5 class="text-white mb-3"><i class="fas fa-music me-2"></i>Nhạc mở màn</h5>
+                               <textarea class="form-control music-notes" data-max="999" id="intro_sound" rows="8" placeholder="Nhập mã nhạc mở màn..."></textarea>
+                               <button class="btn"  onclick="playSoundFromTextarea('intro_sound')"  style="position: absolute; top: 5px; right: 5px; z-index: 1;">🔊</button>
+                               <p><br />Sound mẫu:</p>
+                               <button class="btn btn-danger btn-sm example_intro mt-1" data-sound="intro.mp3">Intro Moshi moshi</button>
+                               <button class="btn btn-danger btn-sm example_intro mt-1" data-sound="moshi.mp3">Moshi moshi</button>
+                               <button class="btn btn-primary btn-sm example_intro mt-1" data-sound="E5 100 20 E5 100 20 E5 100 60 C5 100 20 E5 100 60 G5 100 100 G4 100 100 C5 100 20 G4 100 60 E4 100 20 A4 100 20 B4 100 20 AS4 100 20 A4 100 60 G4 100 40 E5 100 20 G5 100 20 A5 100 20 F5 100 20 G5 100 20 E5 100 20 C5 100 20 D5 100 20 B4 100 100">Mario</button>
+                               <button class="btn btn-primary btn-sm example_intro mt-1" data-sound="E5 125 10 D5 125 10 F#4 125 10 GS4 125 10 CS5 125 10 B4 125 10 D4 125 10 E4 125 10 B4 125 10 AS4 125 10">Nokia intro</button>
+                               <button class="btn btn-primary btn-sm example_intro mt-1" data-sound="C5 150 20 G4 150 20 C5 150 20 E5 150 20 G5 200 50 C6 250 50 G5 150 20 E5 150 20 C5 300 50">Epic</button>
+                               <button class="btn btn-primary btn-sm example_intro mt-1" data-sound="D4 100 20 F4 100 20 AS4 100 20 D5 100 20 C5 100 20 AS4 100 20 F4 100 20 D4 200 50">Mystery</button>
+                               <button class="btn btn-primary btn-sm example_intro mt-1" data-sound="E5 120 20 G5 120 20 B5 120 20 E6 180 30 D6 120 20 B5 120 20 G5 120 20 E5 220 40">Bay bổng</button>
+                               <button class="btn btn-primary btn-sm example_intro mt-1" data-sound="C5 80 10 G5 80 10 F5 80 10 E5 80 10 D5 100 20 C5 80 10 G4 80 10 A4 80 10 B4 100 20 C5 150 30">Hiện đại</button>
+                               <button class="btn btn-primary btn-sm example_intro mt-1" data-sound="G4 200 30 C5 200 30 E5 200 30 G5 200 30 C6 300 50 G5 150 20 E5 150 20 C5 400 50">Đám cưới</button>                        
+                           </div>
+                           
+                           <div class="glass-card p-4 mt-3">
+                               <h5 class="text-white mb-3"><i class="fas fa-bell me-2"></i>Âm thanh thông báo</h5>
+                               <textarea class="form-control music-notes" data-max="999" id="notification_sound" rows="3" placeholder="Nhập mã âm thanh thông báo..."></textarea>
+                               <button class="btn" onclick="playSoundFromTextarea('notification_sound')"  style="position: absolute; top: 5px; right: 5px; z-index: 1;">🔊</button>
+                               <p><br />Sound mẫu:</p>                                
+                               <button class="btn btn-danger btn-sm example_notification mt-1" data-sound="moshi.mp3">Moshi moshi</button>
+                               <button class="btn btn btn-primary btn-sm example_notification mt-1" data-sound="C5 200 50 D5 200 50 E5 200 50 F5 200 50 G5 400 100 G5 200 50 F5 200 50 E5 200 50 D5 200 50 C5 400 100">Tè te te te té</button>
+                               <button class="btn btn btn-primary btn-sm example_notification mt-1" data-sound="C5 100 0">Ding</button>
+                               <button class="btn btn btn-primary btn-sm example_notification mt-1" data-sound="G4 80 0">Pop</button>
+                               <button class="btn btn btn-primary btn-sm example_notification mt-1" data-sound="E5 70 0 G5 70 0">Chime</button>
+                               <button class="btn btn btn-primary btn-sm example_notification mt-1" data-sound="A4 50 0">Tick</button>
+                               <button class="btn btn btn-primary btn-sm example_notification mt-1" data-sound="C5 50 0 E5 50 0 G5 50 0">Wosh</button>
+                               <button class="btn btn btn-primary btn-sm example_notification mt-1" data-sound="C4 60 0">Click</button>
+                               <button class="btn btn btn-primary btn-sm example_notification mt-1" data-sound="D5 120 0">Ping</button>
+                               <button class="btn btn btn-primary btn-sm example_notification mt-1" data-sound="C5 50 0 E5 50 0 C5 50 0">Bounce</button>
+                               <button class="btn btn btn-primary btn-sm example_notification mt-1" data-sound="F4 100 0">Alert</button>
+                           </div>
+                       </div>
+                       <div class="col-md-6">
+                           <div class="glass-card p-4">
+                               <h5 class="text-white mb-3"><i class="fas fa-bell me-2"></i>Âm thanh chạm 1 nhịp</h5>
+                               <textarea class="form-control music-notes" data-max="999" id="touch_sound" rows="3" placeholder="Nhập mã âm thanh thông báo..."></textarea>
+                               <button class="btn" onclick="playSoundFromTextarea('touch_sound')"  style="position: absolute; top: 5px; right: 5px; z-index: 1;">🔊</button>
+                               <p><br />Sound mẫu:</p>
+                               <button class="btn btn btn-primary btn-sm example_touch_sound mt-1" data-sound="C5 200 50 D5 200 50 E5 200 50 F5 200 50 G5 400 100 G5 200 50 F5 200 50 E5 200 50 D5 200 50 C5 400 100">Tè te te te té</button>
+                               <button class="btn btn btn-primary btn-sm example_touch_sound mt-1" data-sound="C5 100 0">Ding</button>
+                               <button class="btn btn btn-primary btn-sm example_touch_sound mt-1" data-sound="G4 80 0">Pop</button>
+                               <button class="btn btn btn-primary btn-sm example_touch_sound mt-1" data-sound="E5 70 0 G5 70 0">Chime</button>
+                               <button class="btn btn btn-primary btn-sm example_touch_sound mt-1" data-sound="A4 50 0">Tick</button>
+                               <button class="btn btn btn-primary btn-sm example_touch_sound mt-1" data-sound="C5 50 0 E5 50 0 G5 50 0">Wosh</button>
+                               <button class="btn btn btn-primary btn-sm example_touch_sound mt-1" data-sound="C4 60 0">Click</button>
+                               <button class="btn btn btn-primary btn-sm example_touch_sound mt-1" data-sound="D5 120 0">Ping</button>
+                               <button class="btn btn btn-primary btn-sm example_touch_sound mt-1" data-sound="C5 50 0 E5 50 0 C5 50 0">Bounce</button>
+                               <button class="btn btn btn-primary btn-sm example_touch_sound mt-1" data-sound="F4 100 0">Alert</button>
+                           </div>
+                           <div class="glass-card p-4 mt-3">
+                               <h5 class="text-white mb-3"><i class="fas fa-bell me-2"></i>Âm thanh khi chạm đôi</h5>
+                               <textarea class="form-control music-notes" data-max="999" id="double_touch_sound" rows="3" placeholder="Nhập mã âm thanh thông báo..."></textarea>
+                               <button class="btn" onclick="playSoundFromTextarea('double_touch_sound')"  style="position: absolute; top: 5px; right: 5px; z-index: 1;">🔊</button>
+                               <p><br />Sound mẫu:</p>
+                               <button class="btn btn btn-primary btn-sm example_double_touch_sound mt-1" data-sound="C5 200 50 D5 200 50 E5 200 50 F5 200 50 G5 400 100 G5 200 50 F5 200 50 E5 200 50 D5 200 50 C5 400 100">Tè te te te té</button>
+                               <button class="btn btn btn-primary btn-sm example_double_touch_sound mt-1" data-sound="C5 100 0">Ding</button>
+                               <button class="btn btn btn-primary btn-sm example_double_touch_sound mt-1" data-sound="G4 80 0">Pop</button>
+                               <button class="btn btn btn-primary btn-sm example_double_touch_sound mt-1" data-sound="E5 70 0 G5 70 0">Chime</button>
+                               <button class="btn btn btn-primary btn-sm example_double_touch_sound mt-1" data-sound="A4 50 0">Tick</button>
+                               <button class="btn btn btn-primary btn-sm example_double_touch_sound mt-1" data-sound="C5 50 0 E5 50 0 G5 50 0">Wosh</button>
+                               <button class="btn btn btn-primary btn-sm example_double_touch_sound mt-1" data-sound="C4 60 0">Click</button>
+                               <button class="btn btn btn-primary btn-sm example_double_touch_sound mt-1" data-sound="D5 120 0">Ping</button>
+                               <button class="btn btn btn-primary btn-sm example_double_touch_sound mt-1" data-sound="C5 50 0 E5 50 0 C5 50 0">Bounce</button>
+                               <button class="btn btn btn-primary btn-sm example_double_touch_sound mt-1" data-sound="F4 100 0">Alert</button>
+                           </div>
+                           <div class="glass-card p-4 mt-3">
+                               <h5 class="text-white mb-3"><i class="fas fa-bell me-2"></i>Âm thanh khi giữ lâu</h5>
+                               <textarea class="form-control music-notes" data-max="999" id="long_touch_sound" rows="3" placeholder="Nhập mã âm thanh thông báo..."></textarea>
+                               <button class="btn" onclick="playSoundFromTextarea('long_touch_sound')"  style="position: absolute; top: 5px; right: 5px; z-index: 1;">🔊</button>
+                               <p><br />Sound mẫu:</p>
+                               <button class="btn btn btn-primary btn-sm example_long_touch_sound mt-1" data-sound="C5 200 50 D5 200 50 E5 200 50 F5 200 50 G5 400 100 G5 200 50 F5 200 50 E5 200 50 D5 200 50 C5 400 100">Tè te te te té</button>
+                               <button class="btn btn btn-primary btn-sm example_long_touch_sound mt-1" data-sound="C5 100 0">Ding</button>
+                               <button class="btn btn btn-primary btn-sm example_long_touch_sound mt-1" data-sound="G4 80 0">Pop</button>
+                               <button class="btn btn btn-primary btn-sm example_long_touch_sound mt-1" data-sound="E5 70 0 G5 70 0">Chime</button>
+                               <button class="btn btn btn-primary btn-sm example_long_touch_sound mt-1" data-sound="A4 50 0">Tick</button>
+                               <button class="btn btn btn-primary btn-sm example_long_touch_sound mt-1" data-sound="C5 50 0 E5 50 0 G5 50 0">Wosh</button>
+                               <button class="btn btn btn-primary btn-sm example_long_touch_sound mt-1" data-sound="C4 60 0">Click</button>
+                               <button class="btn btn btn-primary btn-sm example_long_touch_sound mt-1" data-sound="D5 120 0">Ping</button>
+                               <button class="btn btn btn-primary btn-sm example_long_touch_sound mt-1" data-sound="C5 50 0 E5 50 0 C5 50 0">Bounce</button>
+                               <button class="btn btn btn-primary btn-sm example_long_touch_sound mt-1" data-sound="F4 100 0">Alert</button>
+                           </div>
+                       </div>
+                       <div class="text-center mt-4">
+                            <button class="btn btn-outline-info defaultBtn" data-set="2"
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-placement="top" 
+                                   data-bs-title="Trả về mặc định thiết lập âm thanh, nhớ lưu cài đặt">
+                               <i class="fas fa-sync me-2"></i>Về mặc định
+                           </button>
+                       </div>
+                   </div>
+               </div>
+               
+               <!-- Chronos Tab -->
+               <div class="tab-pane fade" id="chronos" role="tabpanel" tabindex="0">
+                   <div class="row justify-content-center">
+                       <div class="col-md-6">
+                           <div class="glass-card p-4">
+                               <div class="row">
+                                   <div class="col-12 mb-4">
+                                       <label for="notifDuration" class="form-label">Hiển thị thông báo trong: <span id="notifDurationValue">5</span> giây</label>
+                                       <input type="range" class="form-range" id="notifDuration" min="1" max="10" value="5">
+                                   </div>
+
+
+                                   <div class="col-12 mb-4">
+                                       <label for="bluetooth_auto_off" class="form-label">Tự tắt bluetooth sau x phút từ khi khởi động: <span id="bluetooth_auto_offValue">5</span> phút</label>
+                                       <input type="range" class="form-range" id="bluetooth_auto_off" min="0" max="10" value="5">
+                                       <span>Đặt = 0 để Bluetooth luôn mở</span>
+                                   </div>
+                                   
+                                   <div class="col-12 mb-4">
+                                       <label for="bluetoothName" class="form-label">Tên Bluetooth</label>
+                                       <input type="text" class="form-control" id="bluetoothName" placeholder="Nhập tên Bluetooth" value="DASAI">
+                                   </div>
+                               </div>
+                           </div>
+                       </div>
+                   </div>
+               </div>
+                
+               <!-- Hardware Tab -->
+               <div class="tab-pane fade" id="hardware-content">
+                   <div class="row">
+                       <div class="col-md-4">
+                           <div class="glass-card p-4">
+                               <h5 class="text-white mb-4"><i class="fas fa-microchip me-2"></i>Cấu hình màn hình</h5>
+                               
+                               <div class="mb-3">
+                                   <label for="display_type" class="form-label text-white">Loại màn hình</label>
+                                   <select class="form-select" id="display_type">
+                                       <option value="ssd1306">SSD1306</option>
+                                       <option value="sh1106">SH1106</option>
+                                   </select>
+                               </div>
+
+
+                               <div class="mb-3">
+                                   <label for="scl_pin" class="form-label text-white">Chân SCL</label>
+                                   <input type="number" class="form-control" id="scl_pin" min="1" max="21" value="">
+                               </div>
+                               
+                               <div class="mb-3">
+                                   <label for="sda_pin" class="form-label text-white">Chân SDA</label>
+                                   <input type="number" class="form-control" id="sda_pin" min="1" max="21" value="">
+                               </div>
+                               <hr>
+                               
+                               <div class="mb-3">
+                                   <label for="is_flip_mode" class="form-label text-white">Lật ngược 360 độ</label>
+                                   <select class="form-select" id="is_flip_mode">
+                                       <option value="0">Không lật</option>
+                                       <option value="1">Lật 180 độ</option>
+                                   </select>
+                               </div>
+                           </div>
+                       </div>
+                       <div class="col-md-4">
+                           <div class="glass-card p-4">
+                                <h5 class="text-white mb-4"><i class="fas fa-microchip me-2"></i>Phần cứng âm thanh</h5>
+                               <div class="mb-3">
+                                   <label for="use_sound" class="form-label text-white">Sử dụng module âm thanh</label>
+                                   <select class="form-select" id="use_sound">
+                                       <option value="2">DAC (I2S)</option>
+                                       <option value="1">Loa Buzzer</option>
+                                       <option value="0">Không sử dụng</option>
+                                   </select>
+                               </div>
+                               <div class="buzzer_settings" style="display: none;">
+                                   <h4>Chân Loa Buzzer</h4>
+                                       <div class="mb-3">
+                                           <input type="number" class="form-control" id="buzzer_pin" min="1" max="21" value="2">
+                                       </div>
+                               </div>
+                               <div class="i2s_settings" style="display: none;">
+                                   <h4>Chân Mạch Khuyếch Đại</h4>
+                                   <div class="mb-3">
+                                       <label for="I2S_LRCK_PIN" class="form-label text-white">Chân LRCK</label>
+                                       <input type="number" class="form-control" id="I2S_LRCK_PIN" min="1" max="21" value="5">
+                                   </div>
+                                   <div class="mb-3">
+                                       <label for="I2S_BCK_PIN" class="form-label text-white">Chân BCLK</label>
+                                       <input type="number" class="form-control" id="I2S_BCK_PIN" min="1" max="21" value="6">
+                                   </div>
+                                   <div class="mb-3">
+                                       <label for="I2S_DATA_PIN" class="form-label text-white">Chân DATA (DIN)</label>
+                                       <input type="number" class="form-control" id="I2S_DATA_PIN" min="1" max="21" value="7">
+                                   </div>
+                                   <hr>
+                                   <div class="mb-3">
+                                       <label for="volume" class="form-label text-white">Âm lượng</label> <span id="volumeValue">5</span>
+                                       <input type="range" class="form-range" id="volume" min="1" max="10" value="5">
+                                   </div>
+                               </div>
+                           </div>
+                       </div>
+                       
+                       <div class="col-md-4">
+                           <div class="glass-card p-4">
+                                <h5 class="text-white mb-4"><i class="fas fa-microchip me-2"></i>Phần cứng khác</h5>
+                                
+                               <div class="mb-3">
+                                   <label for="touch_pin" class="form-label text-white">Chân Cảm biến chạm (Để 22 nếu bạn không sử dụng)</label>
+                                   <input type="number" class="form-control" id="touch_pin" min="1" max="22" value="22">
+                               </div>
+                               <div class="mb-3">
+                                   <label for="language" class="form-label text-white">Ngôn ngữ</label>
+                                   <select name="language" id="language" class="form-select">
+                                       <option value="1">English</option>
+                                       <option value="0">Vietnamese</option>
+                                   </select>
+                               </div>
+                           </div>
+                       </div>
+
+                       <div class="col-md-4">
+                           <div class="glass-card p-4 mt-3 mb-3">
+                                <h5 class="text-white mb-4"><i class="fas fa-microchip me-2"></i>Thẻ nhớ</h5>
+                                
+                               <div class="mb-3">
+                                   <label for="touch_pin" class="form-label text-white">Sử dụng thẻ nhớ?</label>
+                                   <select name="useSD" id="useSD" class="form-select">
+                                       <option value="1">Có</option>
+                                       <option value="0">Không</option>
+                                   </select>
+                               </div>
+                               <hr>
+                               <div class="mb-3">
+                                   <label for="SD_MISO" class="form-label text-white">Chân MISO</label>
+                                   <input type="number" class="form-control" id="SD_MISO" min="1" max="22" value="22">
+                               </div>
+                               <div class="mb-3">
+                                   <label for="SD_MOSI" class="form-label text-white">Chân MOSI</label>
+                                   <input type="number" class="form-control" id="SD_MOSI" min="1" max="22" value="22">
+                               </div>
+                                <div class="mb-3">
+                                   <label for="SD_SCK" class="form-label text-white">Chân SCK</label>
+                                   <input type="number" class="form-control" id="SD_SCK" min="1" max="22" value="22">
+                               </div>
+                               <div class="mb-3">
+                                   <label for="SD_CS" class="form-label text-white">Chân CS</label>
+                                   <input type="number" class="form-control" id="SD_CS" min="1" max="22" value="22">    
+                                </div>
+                           </div>
+                       </div>
+
+
+                       <div class="text-center mt-4">
+                           <button class="btn btn-outline-info defaultBtn" data-set="3"
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               data-bs-title="Trả về mặc định thiết lập phần cứng, nhớ lưu cài đặt">
+                               <i class="fas fa-sync me-2"></i>Về mặc định
+                           </button>
+                       </div>
+                   </div>
+               </div>
+
+
+               <!-- Credit Tab -->
+               <div class="tab-pane fade" id="credit-content">
+                   <div class="row justify-content-center">
+                       <div class="col-md-3">
+                           <div class="glass-card p-5 text-center">
+                               <i class="fas fa-heart fa-3x text-danger mb-4"></i>
+                               <h3 class="text-white mb-3">THE MOCHI</h3>
+                               <p class="text-light mb-4">Được phát triển bởi</p>
+                               <h4 class="text-primary mb-4"><a href="https://huykhong.com">HUY KHÔNG</a></h4>
+                               <hr class="my-4">
+                               <p class="text-muted">
+                                ..cùng những người bạn trong cộng đồng nạn nhân..
+                               </p>
+                           </div>
+                       </div>
+                        <div class="col-md-6">
+                           <div class="glass-card  p-5 text-center">
+                               <h4 class="text-white mb-4">DONATE</h4>
+                               <p class="text-light mb-4"></p>
+                               <p class="text-primary mb-4">
+                                   <img id="qrDonate" src="https://img.vietqr.io/image/TPB-03743584444-qr_only.png?addInfo=MOCHI" alt="QR Code" class="img-fluid mb-2" style="max-width: 200px;">
+                                        <script>
+                                        // ...existing code...
+                                        // Cập nhật addInfo QR code khi có MAC
+                                        function updateDonateQR(mac) {
+                                            if (!mac) return;
+                                            var macNoColon = mac.replace(/:/g, '').toUpperCase();
+                                            var qr = document.getElementById('qrDonate');
+                                            if (qr) {
+                                                qr.src = 'https://img.vietqr.io/image/TPB-03743584444-qr_only.png?amount=50000&addInfo=MOCHI' + macNoColon;
+                                            }
+                                        }
+                                        </script>
+                               </p>
+                               <p class="text-primary mb-4">
+                                   Sau khi Donate, MOCHI của bạn sẽ tự động được nâng cấp lên phiên bản Supporter, xoá credit và mở khoá các tính năng ẩn. 
+                                   <br />Quét mã trên để Donate, hãy giữ nguyên nội dung chuyển khoản. Nếu hệ thống không tự động vui lòng liên hệ <a href="https://www.facebook.com/huykhoong">Huy Không</a> để được hỗ trợ.</p>
+                                   <p>For international supporters, you can back the project by making a donation via PayPal at <a href="https://paypal.me/ihnep" target="_blank">paypal.me/ihnep</a></a>. Once you’ve donated, please send me your Mochi device’s MAC address (found in the top-right corner of the website) via Facebook (<a href="http://fb.me/huykhoong" target="_blank">Huy Không</a>). I will then manually activate your support license.</p>
+                               </p>                                        
+                            </div>
+                        </div>
+                        <div class="col-md-3 supporter">
+                            <div class="glass-card p-5 text-center">
+                               <div class="mb-3">
+                                   <label for="custom_title" class="form-label text-white">Title tuỳ chọn khi mở the Mochi</label>
+                                   <input type="text" class="form-control" id="custom_title" placeholder="Nhập tiêu đề tuỳ chọn khi mở the Mochi" value="THE MOCHI">
+                               </div>
+                                <p class="text-muted mb-4">
+                                    <i class="fas fa-code me-2"></i>
+                                    Cám ơn sự đóng góp của bạn vào dự án.
+                                </p>
+                            </div>
+                        </div>
+               </div>
+           </div>
+       </div>
+   </div>
+
+
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+   <script>
+       let port = null;
+       let writer = null;
+       let reader = null;
+
+
+       // Hàm lấy giá trị mặc định từ ESP32
+       async function getDefaultValues() {
+           if (!port || !writer) {
+               console.error('Chưa kết nối với THE MOCHI');
+               return;
+           }
+
+
+           try {
+               // Gửi lệnh lấy dữ liệu
+               await sendData('set', 'get');
+               
+               // Bắt đầu đọc dữ liệu từ ESP32
+               if (!reader) {
+                   reader = port.readable.getReader();
+               }
+               
+               // Đọc và xử lý dữ liệu
+               readSerialData();
+               
+           } catch (error) {
+               console.error('Lỗi khi lấy giá trị mặc định:', error);
+           }
+       }
+
+
+       // Hàm đọc dữ liệu serial
+       async function readSerialData() {
+           const decoder = new TextDecoder();
+           let buffer = '';
+           
+           try {
+               while (true) {
+                   const { value, done } = await reader.read();
+                   if (done) break;
+                   
+                   buffer += decoder.decode(value, { stream: true });
+                   
+                   // Xử lý từng dòng dữ liệu
+                   const lines = buffer.split('\n');
+                   buffer = lines.pop() || ''; // Giữ lại phần chưa hoàn chỉnh
+                   
+                   for (const line of lines) {
+                       if (line.trim()) {
+                           parseAndSetValue(line.trim());
+                       }
+                   }
+               }
+           } catch (error) {
+               console.error('Lỗi đọc dữ liệu:', error);
+           }
+       }
+       function compareVersions(a, b) {
+           const aParts = a.split('.').map(Number);
+           const bParts = b.split('.').map(Number);
+
+
+           for (let i = 0; i < 3; i++) {
+               if (aParts[i] > bParts[i]) return 1;
+               if (aParts[i] < bParts[i]) return -1;
+           }
+           return 0;
+       }
+       // Hàm phân tích và gán giá trị vào form
+       function parseAndSetValue(data) {
+           const [fieldName, value] = data.split(':');
+           
+           if (!fieldName || value === undefined) return;
+           
+           console.log(`Received: ${fieldName} = ${value}`);
+           
+           // Xử lý các trường khác nhau
+           switch (fieldName.trim()) {
+              case 'MAC':
+                  document.getElementById('macValue').textContent = value.replace(/(.{2})/g, '$1:').slice(0, -1);
+                  updateDonateQR(value);
+                  // Gửi request tới license_check.php để lấy key
+                  fetch('license_check.php?mac=' + encodeURIComponent(value))
+                      .then(res => res.ok ? res.json() : null)
+                      .then(data => {
+                          if (data && data.key) {
+                              // Gửi qua serial dạng key:license_key
+                              if (writer) {
+                                  const encoder = new TextEncoder();
+                                  writer.write(encoder.encode('key:' + data.key + '\n'));
+                                  //licenseValue
+                                    document.getElementById('licenseValue').textContent = "Supporter";
+                                    document.getElementById('licenseStatus').className = 'badge bg-success text-white';
+                              }
+                          }
+                      })
+                      .catch(() => {});
+                  break;
+              case 'licOK':
+                if (value === 'true') {
+                    document.querySelector('.supporter').style.display = 'block';
+                }
+                  var licText = (value === 'true') ? 'Supporter' : 'Free';
+                  var licClass = (value === 'true') ? 'bg-success text-white' : 'bg-warning text-dark';
+                  var licElem = document.getElementById('licenseStatus');
+                  document.getElementById('licenseValue').textContent = licText;
+                  licElem.className = 'badge ' + licClass;
+                  break;
+               case 'version':
+                   var currentVersion = "4.3.2";
+                   if (compareVersions(value, currentVersion) !== 0) {
+                       alert(`Phiên bản mới nhất: ${currentVersion}, phiên bản của bạn là: ${value}.`);
+                   }
+                   break;
+               case 'Return':
+                   alert(value);
+                   break;
+                
+               case 'GIF_SD':
+                   const gifNames = value.split(';').filter(name => name.trim() !== '');
+                   const selectors = ['gif_default','gif_intro', 'gif_touch', 'gif_double_touch', 'gif_long_touch'];
+
+                   selectors.forEach(selectorId => {
+                       const selectElement = document.getElementById(selectorId);
+                       if (selectElement) {
+                           // Xóa các tùy chọn GIF từ SD card cũ để tránh trùng lặp
+                           const existingSdGifs = selectElement.querySelectorAll('.sd-gif-option');
+                           existingSdGifs.forEach(opt => opt.remove());
+
+                           if (gifNames.length > 0) {
+                               const separator = document.createElement('option');
+                               separator.disabled = true;
+                               separator.textContent = '--- SD Card GIFs ---';
+                               separator.classList.add('sd-gif-option');
+                               selectElement.appendChild(separator);
+
+                               gifNames.forEach(gifName => {
+                                   const option = document.createElement('option');
+                                   option.value = `/gifs/${gifName}`;
+                                   option.textContent = (gifName.charAt(0).toUpperCase() + gifName.slice(1)).replace(/_/g, ' ');
+                                   option.classList.add('sd-gif-option');
+                                   selectElement.appendChild(option);
+                               });
+                           }
+                       }
+                   });
+                   break;
+                   
+               case 'gif_speed':
+                   document.getElementById('gif_speed').value = value;
+                   document.getElementById('gif_speedValue').textContent = value;
+                   break;
+                   
+               case 'gif_delay':
+                   document.getElementById('gif_delay').value = Math.floor(value / 1000);
+                   document.getElementById('gif_delayValue').textContent = Math.floor(value / 1000);
+                   break;
+                   
+               case 'gif_negative':
+                   document.getElementById('isInverted').checked = (value === 'true' || value === '1');
+                   break;
+                   
+                case 'gif_default':
+                   document.getElementById('gif_default').value = value;
+                   break;
+               case 'gif_intro':
+                   document.getElementById('gif_intro').value = value;
+                   break;
+               case 'gif_touch':
+                   document.getElementById('gif_touch').value = value;
+                   break;
+               case 'gif_double_touch':
+                   document.getElementById('gif_double_touch').value = value;
+                   break;
+               case 'gif_long_touch':
+                   document.getElementById('gif_long_touch').value = value;
+                   break;
+
+
+               case 'gif_selected':
+                   document.querySelectorAll('.gif-checkbox').forEach((cb, i) => {
+                       cb.checked = value[i] === '1';
+                   });
+                   break;
+                   
+               case 'intro_sound':
+                   document.getElementById('intro_sound').value = value;
+                   break;
+               case 'notification_sound':
+                   document.getElementById('notification_sound').value = value;
+                   break;
+               case 'touch_sound':
+                   document.getElementById('touch_sound').value = value;
+                   break;
+               case 'double_touch_sound':
+                   document.getElementById('double_touch_sound').value = value;
+                   break;
+               case 'long_touch_sound':
+                   document.getElementById('long_touch_sound').value = value;
+                   break;
+
+
+               case 'notifDuration':
+                   document.getElementById('notifDuration').value = value;
+                   document.getElementById('notifDurationValue').textContent = value;
+                   break;
+
+
+               case 'bluetooth_auto_off':
+                   document.getElementById('bluetooth_auto_off').value = value;
+                   document.getElementById('bluetooth_auto_offValue').textContent = value;
+                   break;
+                   
+               case 'bluetoothName':
+                   document.getElementById('bluetoothName').value = value;
+                   break;
+                   
+
+
+               case 'display_type':
+                   document.getElementById('display_type').value = value;
+                   break;
+                   
+               case 'is_flip_mode':
+                   document.getElementById('is_flip_mode').value = value;
+                   break;
+
+
+               case 'scl_pin':
+                   document.getElementById('scl_pin').value = value;
+                   break;
+                   
+               case 'sda_pin':
+                   document.getElementById('sda_pin').value = value;
+                   break;
+               case 'use_sound':
+                   document.getElementById('use_sound').value = value;
+                   document.querySelector('.buzzer_settings').style.display = (value === '1') ? 'block' : 'none';
+                   document.querySelector('.i2s_settings').style.display = (value === '2') ? 'block' : 'none';
+                   break;
+               case 'I2S_LRCK_PIN':
+                   document.getElementById('I2S_LRCK_PIN').value = value;
+                   break;
+               case 'I2S_BCK_PIN':
+                   document.getElementById('I2S_BCK_PIN').value = value;
+                   break;
+
+
+               case 'I2S_DATA_PIN':    
+                   document.getElementById('I2S_DATA_PIN').value = value;
+                   break;
+               case 'volume':
+                   document.getElementById('volume').value = value;
+                   document.getElementById('volumeValue').textContent = value;
+                   break;
+
+
+               case 'buzzer_pin':
+                   document.getElementById('buzzer_pin').value = value;
+                   break;
+
+
+               case 'touch_pin':
+                   document.getElementById('touch_pin').value = value;
+                   break;
+                case 'language':
+                   document.getElementById('language').value = value;
+                   break;                   
+                case 'custom_title':
+                   document.getElementById('custom_title').value = value;
+                   break;
+                case 'useSD':
+                   document.getElementById('useSD').value = (value === 'true') ? '1' : '0';
+                   break;
+               case 'SD_SCK':
+                   document.getElementById('SD_SCK').value = value;
+                   break;
+                case 'SD_MOSI':
+                   document.getElementById('SD_MOSI').value = value;
+                   break;
+                case 'SD_MISO':
+                   document.getElementById('SD_MISO').value = value;
+                   break;
+                case 'SD_CS':
+                   document.getElementById('SD_CS').value = value;
+                   break;
+                   
+                
+               default:
+                   //console.log(`Unknown field: ${fieldName}`);
+           }
+       }
+
+
+
+async function sendData(fieldName, value) {
+   if (!writer) return;
+
+
+   try {
+       const encoder = new TextEncoder();
+
+
+       const soundFields = [
+           "intro_sound",
+           "touch_sound",
+           "double_touch_sound",
+           "long_touch_sound",
+           "notification_sound"
+       ];
+
+
+       // Nếu là chuỗi dài cần chia nhỏ
+       if (soundFields.includes(fieldName)) {
+           const maxChunk = 240;
+
+
+           for (let i = 0; i < value.length; i += maxChunk) {
+               const chunk = value.substring(i, i + maxChunk);
+               const key = (i === 0) ? fieldName : `${fieldName}_cont`;
+               const line = `${key}:${chunk}\n`;
+
+
+               await writer.write(encoder.encode(line));
+               await delay(100); // Cho ESP32 có thời gian xử lý
+           }
+
+
+           // Gửi lệnh kết thúc để ESP32 biết đã đủ
+           await writer.write(encoder.encode(`${fieldName}_end:\n`));
+           console.log(`✅ Sent full chunks for ${fieldName}`);
+
+
+       } else {
+           // Gửi field thông thường
+           const data = `${fieldName}:${value}\n`;
+           await writer.write(encoder.encode(data));
+           console.log(`Sent: ${data.trim()}`);
+       }
+
+
+   } catch (error) {
+       console.error('Error sending data:', error);
+       alert("⚠️ Mất kết nối với ESP32 do DASAI MOCHI của ông bị reset hoặc ông rút dây ra, giờ tôi refresh ông kết nối lại.");
+       location.reload();
+   }
+
+}
+
+
+
+// Gợi ý thêm nếu chưa có
+
+function delay(ms) {
+   return new Promise(resolve => setTimeout(resolve, ms));
+
+}
+
+
+
+
+
+
+       // Kết nối Serial
+       async function connectSerial() {
+           try {
+               port = await navigator.serial.requestPort();
+               await port.open({ baudRate: 115200 });
+               
+               writer = port.writable.getWriter();
+               
+               console.log('Connected to ESP32');
+               var delayInMilliseconds = 2000; //1 second
+               setTimeout(function() {
+               //your code to be executed after 1 second
+               }, delayInMilliseconds);
+
+
+               document.getElementById('loadingOverlay').style.display = 'flex'; 
+               document.getElementById('connectionStatus').style.display = 'block';
+               
+               // Tự động lấy giá trị mặc định sau khi kết nối
+               setTimeout(() => {
+                   getDefaultValues();
+
+
+                   // Chờ cho đến khi nhận được gif_speed
+                   const checkGifSpeed = setInterval(() => {
+                       if (document.getElementById('gif_speedValue').innerText !== '-1') { 
+
+
+                           clearInterval(checkGifSpeed);
+                           document.getElementById('connectScreen').style.display = 'none';
+                           document.getElementById('loadingOverlay').style.display = 'none'; 
+                           document.getElementById('controllerScreen').style.display = 'block';
+                           // Hiển thị màn hình điều khiển sau khi nhận được dữ liệu
+                           const now = new Date();
+                           const localTimestamp = Math.floor((now.getTime() - now.getTimezoneOffset() * 60000) / 1000);
+                           sendData('time',  localTimestamp);
+                       }
+                   }, 100); // Kiểm tra mỗi 100ms
+
+
+               }, 2000); // Delay 1 giây để ESP32 sẵn sàng
+               
+           } catch (error) {
+               console.error('Connection failed:', error);
+               alert('Không thể kết nối với ESP32. Vui lòng thử lại.');
+           }
+       }
+
+
+       // Event listeners
+       document.getElementById('connectBtn').addEventListener('click', connectSerial);
+
+
+       // GIF Speed Slider
+       document.getElementById('gif_speed').addEventListener('input', (e) => {
+           document.getElementById('gif_speedValue').textContent = e.target.value;
+           sendData('gif_speed', e.target.value);
+       });
+
+
+       // GIF Delay Slider
+       document.getElementById('gif_delay').addEventListener('input', (e) => {
+           document.getElementById('gif_delayValue').textContent = e.target.value;
+           sendData('gif_delay', e.target.value*1000); // Chuyển đổi giây sang mili giây
+       });
+
+
+       // GIF Negative Checkbox
+       document.getElementById('isInverted').addEventListener('change', (e) => {
+           sendData('isInverted', e.target.checked);
+       });
+
+        // GIF Default Select
+         document.getElementById('gif_default').addEventListener('change', (e) => {
+              sendData('gif_default', e.target.value);
+         });
+       // GIF Intro Select
+       document.getElementById('gif_intro').addEventListener('change', (e) => {
+           sendData('gif_intro', e.target.value);
+       });
+       // GIF Touch Select
+       document.getElementById('gif_touch').addEventListener('change', (e) => {
+           sendData('gif_touch', e.target.value);
+       });
+       // GIF Double Touch Select  
+       document.getElementById('gif_double_touch').addEventListener('change', (e) => {
+           sendData('gif_double_touch', e.target.value);
+       });
+       // GIF Long Touch Select
+       document.getElementById('gif_long_touch').addEventListener('change', (e) => {
+           sendData('gif_long_touch', e.target.value);
+       });
+
+
+       // GIF Checkboxes
+      document.querySelectorAll('.gif-checkbox').forEach((checkbox, index, all) => {
+           checkbox.addEventListener('change', () => {
+               let binaryString = '';
+               all.forEach(cb => {
+                   binaryString += cb.checked ? '1' : '0';
+               });
+               sendData('gif_selected_bin', binaryString);
+           });
+       });
+       document.getElementById('notifDuration').addEventListener('input', (e) => {
+           document.getElementById('notifDurationValue').textContent = e.target.value;
+           sendData('notifDuration', e.target.value);
+       });
+       document.getElementById('bluetooth_auto_off').addEventListener('input', (e) => {
+           document.getElementById('bluetooth_auto_offValue').textContent = e.target.value;
+           sendData('bluetooth_auto_off', e.target.value);
+       });
+       document.getElementById('bluetoothName').addEventListener('input', (e) => {
+           sendData('bluetoothName', e.target.value);
+       });
+       // Audio Textareas
+       document.getElementById('intro_sound').addEventListener('blur', (e) => {
+           sendData('intro_sound', e.target.value);
+       });
+
+
+       document.getElementById('notification_sound').addEventListener('blur', (e) => {
+           sendData('notification_sound', e.target.value);
+       });
+       document.getElementById('touch_sound').addEventListener('blur', (e) => {
+           sendData('touch_sound', e.target.value);
+       });
+       document.getElementById('double_touch_sound').addEventListener('blur', (e) => {
+           sendData('double_touch_sound', e.target.value);
+       });
+       document.getElementById('long_touch_sound').addEventListener('blur', (e) => {
+           sendData('long_touch_sound', e.target.value);
+       });
+
+
+       // Hardware Settings
+       document.getElementById('display_type').addEventListener('change', (e) => {
+           sendData('display_type', e.target.value);
+       });
+       document.getElementById('is_flip_mode').addEventListener('change', (e) => {
+           sendData('is_flip_mode', e.target.value);
+       });
+       document.getElementById('scl_pin').addEventListener('change', (e) => {
+           sendData('scl_pin', e.target.value);
+       });
+
+
+       document.getElementById('sda_pin').addEventListener('change', (e) => {
+           sendData('sda_pin', e.target.value);
+       });
+       document.getElementById('use_sound').addEventListener('change', (e) => {
+           const value = e.target.value;
+           sendData('use_sound', value);
+           
+           // Hiển thị hoặc ẩn các phần cài đặt tương ứng
+           document.querySelector('.buzzer_settings').style.display = (value === '1') ? 'block' : 'none';
+           document.querySelector('.i2s_settings').style.display = (value === '2') ? 'block' : 'none';
+       });
+       document.getElementById('I2S_LRCK_PIN').addEventListener('change', (e) => {
+           sendData('I2S_LRCK_PIN', e.target.value);
+       });
+       document.getElementById('I2S_BCK_PIN').addEventListener('change', (e) => {
+           sendData('I2S_BCK_PIN', e.target.value);
+       });
+       document.getElementById('I2S_DATA_PIN').addEventListener('change', (e) => {
+           sendData('I2S_DATA_PIN', e.target.value);
+       });
+       document.getElementById('volume').addEventListener('input', (e) => {
+           document.getElementById('volumeValue').textContent = e.target.value;
+           sendData('volume', e.target.value);
+       });
+
+
+       document.getElementById('buzzer_pin').addEventListener('change', (e) => {
+           sendData('buzzer_pin', e.target.value);
+       });
+
+
+       document.getElementById('touch_pin').addEventListener('change', (e) => {
+           sendData('touch_pin', e.target.value);
+       });
+         document.getElementById('custom_title').addEventListener('blur', (e) => {
+              sendData('custom_title', e.target.value);
+         });
+       document.getElementById('language').addEventListener('change', (e) => {
+           sendData('language', e.target.value);
+       });
+
+       document.getElementById('useSD').addEventListener('change', (e) => {
+           sendData('useSD', e.target.value);
+       });
+       document.getElementById('SD_SCK').addEventListener('change', (e) => {
+           sendData('SD_SCK', e.target.value);
+       });
+       document.getElementById('SD_MOSI').addEventListener('change', (e) => {
+           sendData('SD_MOSI', e.target.value);
+       });
+       document.getElementById('SD_MISO').addEventListener('change', (e) => {
+           sendData('SD_MISO', e.target.value);
+       });
+       document.getElementById('SD_CS').addEventListener('change', (e) => {
+           sendData('SD_CS', e.target.value);
+       });
+
+
+       // Save and Default buttons
+       document.getElementById('saveBtn').addEventListener('click', () => {
+           sendData('set', 'save');
+           // Visual feedback
+           const btn = document.getElementById('saveBtn');
+           const originalText = btn.innerHTML;
+           btn.innerHTML = '<i class="fas fa-check me-2"></i>Đã lưu!';
+           btn.classList.add('btn-success');
+           btn.classList.remove('btn-elegant');
+           
+           setTimeout(() => {
+               btn.innerHTML = originalText;
+               btn.classList.remove('btn-success');
+               btn.classList.add('btn-elegant');
+           }, 2000);
+       });
+       document.getElementById('resetBtn').addEventListener('click', () => {
+           if (confirm('Bạn có chắc muốn reset Mochi? Nhớ lưu cài đặt trước khi reset!')) {
+               sendData('set', 'reset');                
+               // Visual feedback
+               const btn = document.getElementById('resetBtn');
+               const originalText = btn.innerHTML;
+               btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Đang reset...';
+               window.location.reload();
+               setTimeout(() => {
+                   btn.innerHTML = originalText;
+               }, 2000);
+           }
+       });
+
+
+      document.querySelectorAll('.defaultBtn').forEach(btn => {
+       btn.addEventListener('click', () => {
+           const setType = btn.getAttribute('data-set');
+
+
+           if (setType === '1') {
+               sendData('set', 'default1');
+           } else if (setType === '2') {
+               sendData('set', 'default2');
+           } else if (setType === '3') {
+               sendData('set', 'default3');
+           }
+
+
+           // Visual feedback
+           const originalText = btn.innerHTML;
+           btn.innerHTML = '<i class="fas fa-check me-2"></i>Đã reset!';
+           
+           setTimeout(() => {
+               btn.innerHTML = originalText;
+           }, 2000);
+
+
+           getDefaultValues(); // gọi lại sau khi gửi
+       });
+   });
+
+
+       // Check if Web Serial API is supported
+       if (!('serial' in navigator)) {
+           alert('Web Serial API không được hỗ trợ trong trình duyệt này. Vui lòng sử dụng Chrome hoặc Edge.');
+       }
+       // Khởi tạo tất cả tooltips
+       const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+       const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+
+
+       document.getElementById('selectAllGifs').addEventListener('click', () => {
+           const checkboxes = document.querySelectorAll('.gif-checkbox');
+           let binaryString = '';
+
+
+           checkboxes.forEach(cb => {
+               cb.checked = true;
+               binaryString += '1';
+           });
+
+
+           sendData('gif_selected_bin', binaryString);
+       });
+
+
+       document.getElementById('deselectAllGifs').addEventListener('click', () => {
+           const checkboxes = document.querySelectorAll('.gif-checkbox');
+           let binaryString = '';
+
+
+           checkboxes.forEach(cb => {
+               cb.checked = false;
+               binaryString += '0';
+           });
+
+
+           sendData('gif_selected_bin', binaryString);
+       });
+      
+   </script>
+
+
+   <script>
+       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+       // Âm thanh
+       const notesFreq = {
+           "B0": 31, "C1": 33, "CS1": 35, "D1": 37, "DS1": 39, "E1": 41,
+           "F1": 44, "FS1": 46, "G1": 49, "GS1": 52, "A1": 55, "AS1": 58, "B1": 62,
+           "C2": 65, "CS2": 69, "D2": 73, "DS2": 78, "E2": 82, "F2": 87, "FS2": 93,
+           "G2": 98, "GS2": 104, "A2": 110, "AS2": 117, "B2": 123,
+           "C3": 131, "CS3": 139, "D3": 147, "DS3": 156, "E3": 165, "F3": 175, "FS3": 185,
+           "G3": 196, "GS3": 208, "A3": 220, "AS3": 233, "B3": 247,
+           "C4": 262, "CS4": 277, "D4": 294, "DS4": 311, "E4": 330, "F4": 349, "FS4": 370,
+           "G4": 392, "GS4": 415, "A4": 440, "AS4": 466, "B4": 494,
+           "C5": 523, "CS5": 554, "D5": 587, "DS5": 622, "E5": 659, "F5": 698, "FS5": 740,
+           "G5": 784, "GS5": 831, "A5": 880, "AS5": 932, "B5": 988,
+           "C6": 1047, "CS6": 1109, "D6": 1175, "DS6": 1245, "E6": 1319, "F6": 1397, "FS6": 1480,
+           "G6": 1568, "GS6": 1661, "A6": 1760, "AS6": 1865, "B6": 1976,
+           "C7": 2093, "CS7": 2217, "D7": 2349, "DS7": 2489, "E7": 2637, "F7": 2794, "FS7": 2960,
+           "G7": 3136, "GS7": 3322, "A7": 3520, "AS7": 3729, "B7": 3951,
+           "C8": 4186, "CS8": 4435, "D8": 4699, "DS8": 4978
+           };
+        function playNote(freq, duration, rest) {
+ return new Promise(resolve => {
+   const oscillator = audioCtx.createOscillator();
+   const gainNode = audioCtx.createGain();
+
+
+   oscillator.type = 'square'; // dùng như ESP32
+   oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+   oscillator.connect(gainNode);
+   gainNode.connect(audioCtx.destination);
+
+
+   oscillator.start();
+   setTimeout(() => {
+     oscillator.stop();
+     setTimeout(resolve, rest); // chờ thêm thời gian nghỉ
+   }, duration);
+ });
+
+}
+
+function parseNoteInput(input) {
+ const notes = [];
+ const raw = input.trim();
+
+
+ if (!raw.includes(' ')) {
+   // ---- Dạng tinh gọn: C4100D4100E4100 ----
+   let i = 0;
+   while (i < raw.length) {
+     let note = "", duration = "";
+
+
+     // Thử 3 ký tự đầu
+     let tryNote = raw.substr(i, 3);
+     if (notesFreq[tryNote]) {
+       note = tryNote;
+       i += 3;
+     } else {
+       tryNote = raw.substr(i, 2);
+       if (notesFreq[tryNote]) {
+         note = tryNote;
+         i += 2;
+       } else {
+         console.warn("Không nhận dạng được note tại vị trí", i);
+         break;
+       }
+     }
+
+
+     // Lấy duration (tới khi hết số)
+     while (i < raw.length && /\d/.test(raw[i])) {
+       duration += raw[i];
+       i++;
+     }
+
+
+     notes.push({ note, duration: parseInt(duration), rest: 0 });
+   }
+
+
+ } else {
+   // ---- Dạng cũ: NOTE DURATION [REST] ----
+   const rawParts = raw.split(/\s+/);
+   let i = 0;
+
+
+   while (i < rawParts.length) {
+     const note = rawParts[i];
+     const duration = parseInt(rawParts[i + 1]);
+     let rest = 0;
+
+
+     if (!isNaN(duration)) {
+       const restCandidate = rawParts[i + 2];
+       if (restCandidate && /^\d+$/.test(restCandidate)) {
+         rest = parseInt(restCandidate);
+       }
+       notes.push({ note, duration, rest });
+       i += /^\d+$/.test(restCandidate) ? 3 : 2;
+     } else {
+       i++;
+     }
+   }
+ }
+
+
+ return notes;
+
+}
+
+
+
+
+
+
+
+async function playSoundFromTextarea(textareaId) {
+ const content = document.getElementById(textareaId).value.trim();
+ const notes = parseNoteInput(content);
+
+
+ for (const item of notes) {
+   const freq = notesFreq[item.note];
+   if (freq) {
+     await playNote(freq, item.duration, item.rest);
+   } else {
+     await new Promise(res => setTimeout(res, item.duration + item.rest));
+   }
+ }
+
+}
+
+
+
+
+
+
+           document.querySelectorAll('.example_intro').forEach(btn => {
+               btn.addEventListener('click', () => {
+                   const sound = btn.getAttribute('data-sound');
+                   const textarea = document.getElementById('intro_sound');
+                   if (textarea) {
+                   textarea.value = sound;
+                   sendData('intro_sound', sound);
+                   }
+               });
+           });
+           document.querySelectorAll('.example_notification').forEach(btn => {
+               btn.addEventListener('click', () => {
+                   const sound = btn.getAttribute('data-sound');
+                   const textarea = document.getElementById('notification_sound');
+                   if (textarea) {
+                       textarea.value = sound;
+                       sendData('notification_sound', sound);
+                   }
+               });
+           });
+           document.querySelectorAll('.example_touch_sound').forEach(btn => {
+               btn.addEventListener('click', () => {
+                   const sound = btn.getAttribute('data-sound');
+                   const textarea = document.getElementById('touch_sound');
+                   if (textarea) {
+                       textarea.value = sound;
+                       sendData('touch_sound', sound);
+                   }
+               });
+           });
+           document.querySelectorAll('.example_double_touch_sound').forEach(btn => {
+               btn.addEventListener('click', () => {
+                   const sound = btn.getAttribute('data-sound');
+                   const textarea = document.getElementById('double_touch_sound');
+                   if (textarea) {
+                       textarea.value = sound;
+                       sendData('double_touch_sound', sound);
+                   }
+               });
+           });
+           document.querySelectorAll('.example_long_touch_sound').forEach(btn => {
+               btn.addEventListener('click', () => {
+                   const sound = btn.getAttribute('data-sound');
+                   const textarea = document.getElementById('long_touch_sound');
+                   if (textarea) {
+                       textarea.value = sound;
+                       sendData('long_touch_sound', sound);
+                   }
+               });
+           });
+   document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('textarea.music-notes').forEach(function(textarea) {
+        var max = parseInt(textarea.getAttribute('data-max'), 10);
+        textarea.addEventListener('input', function() {
+        if (textarea.value.length > max) {
+            textarea.value = textarea.value.slice(0, max);
+        }
+        });
+    });
+
+    });
+   </script>
+
+</body>
+
+</html>

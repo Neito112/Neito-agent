@@ -6,34 +6,107 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Body, FastAPI, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.brain.llm_router import brain_router
+from backend.core.chronos_ble_server import chronos_ble_server
 from backend.core.config import config_manager
 from backend.core.mobile_companion_ui import MOBILE_COMPANION_HTML
 from backend.core.mochi_core_brain import mochi_core_brain
 from backend.core.protocol_engine import protocol_engine
 from backend.core.window_watcher import window_watcher
 from backend.vision.eye_engine import eye_engine
+from backend.vision.mochi_esp32_client import ESP32_CACHE_DIR, PROJECT_ROOT
 from backend.voice.omnivoice_tts import VOICE_CATALOG, omnivoice_engine
 from backend.voice.xiaozhi_ear import XiaozhiEarSession
 from backend.core.updater import update_engine, APP_VERSION
 
 app = FastAPI(
-    title="Neito-Agent Core Brain (The Mochi Firmware v4.3.2 + Xiaozhi v2 + Chronos Phone Bridge)",
+    title="Neito-Agent Core Brain (The Mochi Firmware v4.3.2 + Xiaozhi v2 + Chronos BLE Bridge)",
     version="4.3.2",
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def allow_private_network_access(request: Request, call_next):
+    """Allows https://themochi.huykhong.com/thietlap/ to connect to 127.0.0.1:8765 in Chrome/Edge (PNA)."""
+    if request.method == "OPTIONS" and request.headers.get("access-control-request-private-network") == "true":
+        resp = Response(status_code=204)
+        resp.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "*")
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "*"
+        resp.headers["Access-Control-Allow-Private-Network"] = "true"
+        return resp
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
+
+
+@app.on_event("startup")
+async def on_startup_init_chronos_ble():
+    """Starts the real Windows BLE GATT Peripheral Server (`6e400001-b5a3-f393-e0a9-e50e24dcca9e`) for the Chronos Phone App."""
+    loop = asyncio.get_running_loop()
+
+    async def _on_ble_notification(app_name: str, title: str, message: str):
+        pkt = mochi_core_brain.handle_chronos_notification(app_name, title, message)
+        await mochi_core_brain.broadcast_event(pkt)
+
+    async def _on_ble_navigation(direction: str, distance: str, street: str, eta: str):
+        pkt = mochi_core_brain.handle_chronos_navigation(direction, distance, street, eta)
+        await mochi_core_brain.broadcast_event(pkt)
+
+    async def _on_ble_connection(connected: bool):
+        mochi_core_brain.phone_connected = connected
+        if connected:
+            sfx = omnivoice_engine.get_mochi_sfx_audio("coin.wav", emotion="excited")
+            pkt = {
+                "type": "mochi_firmware_event",
+                "event": "chronos_connected",
+                "face": "star",
+                "display_mode": "face",
+                "emotion": "excited",
+                "text": "",
+                "audio": sfx,
+            }
+        else:
+            pkt = {
+                "type": "mochi_firmware_event",
+                "event": "chronos_disconnected",
+                "face": "sleepy",
+                "display_mode": "face",
+                "emotion": "neutral",
+                "text": "",
+            }
+        await mochi_core_brain.broadcast_event(pkt)
+
+    def _on_ble_battery(level: int, charging: bool):
+        mochi_core_brain.phone_battery = level
+        mochi_core_brain.phone_connected = True
+
+    def _on_ble_weather(city: str):
+        mochi_core_brain.phone_weather = city
+
+    chronos_ble_server.set_callbacks(
+        loop=loop,
+        on_notification=_on_ble_notification,
+        on_navigation=_on_ble_navigation,
+        on_connection=_on_ble_connection,
+        on_battery=_on_ble_battery,
+        on_weather=_on_ble_weather,
+    )
+    await chronos_ble_server.start()
 
 
 async def stream_tts_and_bubble(
@@ -98,11 +171,41 @@ async def stream_tts_and_bubble(
         await ws.send_json({"type": "speech_end", "emotion": "idle"})
 
 
-@app.get("/mobile", response_class=HTMLResponse)
+def _build_bridged_thietlap_html() -> str:
+    """
+    Returns the genuine `https://themochi.huykhong.com/thietlap/` HTML page
+    with `<base href="https://themochi.huykhong.com/thietlap/">` and the
+    `navigator.serial` Virtual ESP32-C3 Bridge injected at `<head>`.
+    """
+    orig_path = ESP32_CACHE_DIR / "thietlap_original.html"
+    bridge_js_path = PROJECT_ROOT / "assets" / "mochi_webserial_bridge" / "mochi_serial_bridge.js"
+    bridge_js = bridge_js_path.read_text(encoding="utf-8") if bridge_js_path.exists() else ""
+
+    if orig_path.exists():
+        raw_html = orig_path.read_text(encoding="utf-8", errors="replace")
+        inject_block = (
+            '<head>\n'
+            '<base href="https://themochi.huykhong.com/thietlap/">\n'
+            f'<script>{bridge_js}</script>\n'
+        )
+        if "<head>" in raw_html:
+            return raw_html.replace("<head>", inject_block, 1)
+        return inject_block + raw_html
+    return MOBILE_COMPANION_HTML
+
+
 @app.get("/thietlap", response_class=HTMLResponse)
-async def serve_mobile_companion():
-    """Serves the Smartphone Companion PWA (`http://<PC-LAN-IP>:8765/mobile`)."""
-    return HTMLResponse(content=MOBILE_COMPANION_HTML)
+@app.get("/thietlap/", response_class=HTMLResponse)
+@app.get("/mobile", response_class=HTMLResponse)
+async def serve_thietlap_web_serial_bridge():
+    """Serves the genuine `themochi.huykhong.com/thietlap/` interface with the ESP32-C3 Web-Serial Bridge active."""
+    return HTMLResponse(content=_build_bridged_thietlap_html())
+
+
+@app.get("/thietlap/license_check.php")
+@app.get("/license_check.php")
+async def serve_license_check(mac: str = ""):
+    return JSONResponse({"key": "NEITO-MOCHI-SUPPORTER", "licOK": True, "mac": mac})
 
 
 @app.get("/api/health")
@@ -243,7 +346,33 @@ async def api_mochi_sync():
 async def api_mochi_serial(payload: Dict[str, Any] = Body(...)):
     cmd = payload.get("command", "set:get")
     replies = mochi_core_brain.execute_serial_command(cmd)
+    evt = mochi_core_brain.build_serial_side_effect_packet(cmd)
+    if evt:
+        await mochi_core_brain.broadcast_event(evt)
     return {"replies": replies, "nvs": mochi_core_brain.nvs}
+
+
+@app.websocket("/ws/mochi-serial")
+async def ws_mochi_serial_bridge(ws: WebSocket):
+    """WebSocket stream emulating 115200-baud UART serial for https://themochi.huykhong.com/thietlap/."""
+    await ws.accept()
+    try:
+        while True:
+            raw = await ws.receive_text()
+            for line in raw.splitlines():
+                cmd = line.strip()
+                if not cmd:
+                    continue
+                replies = mochi_core_brain.execute_serial_command(cmd)
+                if replies:
+                    await ws.send_text("\n".join(replies) + "\n")
+                evt = mochi_core_brain.build_serial_side_effect_packet(cmd)
+                if evt:
+                    await mochi_core_brain.broadcast_event(evt)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
 
 
 @app.post("/api/mochi/intro")
@@ -317,11 +446,17 @@ async def api_chronos_navigation(payload: Dict[str, Any] = Body(...)):
 @app.get("/api/mochi/chronos/status")
 async def api_get_chronos_config():
     snap = mochi_core_brain.get_status_snapshot()
+    ble_st = chronos_ble_server.get_status()
     return {
         "bluetoothName": mochi_core_brain.nvs.get("bluetoothName", "THE MOCHI"),
+        "pc_ble_name": ble_st["pc_ble_name"],
+        "service_uuid": ble_st["service_uuid"],
+        "is_advertising": ble_st["is_advertising"],
+        "ble_supported": ble_st["ble_supported"],
+        "connected_clients": ble_st["connected_clients"],
         "notifDuration": mochi_core_brain.nvs.get("notifDuration", "5"),
         "bluetooth_auto_off": mochi_core_brain.nvs.get("bluetooth_auto_off", "0"),
-        "phone_connected": mochi_core_brain.phone_connected,
+        "phone_connected": ble_st["phone_connected"] or mochi_core_brain.phone_connected,
         "phone_battery": mochi_core_brain.phone_battery,
         "mobile_companion_url": snap["mobile_companion_url"],
     }
@@ -344,33 +479,16 @@ async def api_update_chronos_config(payload: Dict[str, Any] = Body(...)):
 
 @app.post("/api/mochi/chronos/connect")
 async def api_chronos_connect(payload: Dict[str, Any] = Body(default={})):
-    action = payload.get("action", "toggle")
-    if action == "disconnect" or (action == "toggle" and mochi_core_brain.phone_connected):
+    action = payload.get("action", "restart")
+    if action == "stop":
+        st = await chronos_ble_server.stop()
         mochi_core_brain.phone_connected = False
-        pkt = {
-            "type": "mochi_firmware_event",
-            "event": "chronos_disconnected",
-            "face": "sleepy",
-            "display_mode": "face",
-            "emotion": "neutral",
-            "text": "📱 Đã ngắt kết nối Chronos Phone",
-        }
     else:
-        mochi_core_brain.phone_connected = True
-        sfx = omnivoice_engine.get_mochi_sfx_audio("coin.wav", emotion="excited")
-        pkt = {
-            "type": "mochi_firmware_event",
-            "event": "chronos_connected",
-            "face": "star",
-            "display_mode": "face",
-            "emotion": "excited",
-            "text": f"📱 Đã kết nối Chronos: {mochi_core_brain.nvs.get('bluetoothName', 'THE MOCHI')} (Pin: 100%)",
-            "audio": sfx,
-        }
-    await mochi_core_brain.broadcast_event(pkt)
+        await chronos_ble_server.stop()
+        st = await chronos_ble_server.start()
     return {
         "ok": True,
-        "phone_connected": mochi_core_brain.phone_connected,
+        **st,
         "phone_battery": mochi_core_brain.phone_battery,
         "bluetoothName": mochi_core_brain.nvs.get("bluetoothName", "THE MOCHI"),
     }

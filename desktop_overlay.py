@@ -759,20 +759,61 @@ class SoulProfileDialog(DraggableFramelessWidget):
             self.btn_save.setText("Lỗi")
 
 
+def launch_thietlap_with_webserial_bridge(fallback_url: str = "http://127.0.0.1:8765/thietlap/"):
+    """
+    Launches `https://themochi.huykhong.com/thietlap/` in Chrome/Edge with the
+    `mochi_webserial_bridge` extension pre-loaded so `navigator.serial.requestPort()`
+    detects the virtual ESP32-C3 (`COM9 - THE MOCHI ESP32-C3`) directly on the official URL.
+    Falls back to `http://127.0.0.1:8765/thietlap/` if neither Chrome nor Edge is found.
+    """
+    import shutil
+    import subprocess
+
+    ext_dir = (_resolve_app_dir() / "assets" / "mochi_webserial_bridge").resolve()
+    profile_dir = Path(os.environ.get("LOCALAPPDATA", str(_resolve_app_dir()))) / "NeitoMochiBridgeProfile"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+
+    candidates = [
+        shutil.which("msedge"),
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        shutil.which("chrome"),
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ]
+    browser_exe = next((c for c in candidates if c and Path(c).exists()), None)
+
+    if browser_exe and ext_dir.exists():
+        try:
+            subprocess.Popen(
+                [
+                    str(browser_exe),
+                    f"--user-data-dir={profile_dir}",
+                    f"--load-extension={ext_dir}",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "https://themochi.huykhong.com/thietlap/",
+                ],
+                 close_fds=True,
+            )
+            return True
+        except Exception:
+            pass
+
+    open_native_url(fallback_url)
+    return False
+
+
 class MobileBridgeDialog(DraggableFramelessWidget):
     """
-    Chronos BLE & Web Controller Setup Popup (`[📱 ĐT]`).
-    Directly reflects https://themochi.huykhong.com/ and https://themochi.huykhong.com/thietlap:
-    1. BLE Chronos Real Connection & Setup (Device Name, Notification Duration, Auto-off timer).
-    2. Real QR Code for Smartphone Web Controller (`http://<LAN_IP>:8765/thietlap`).
-    3. Direct 1-Click Connect to Web Controller & Chronos.
-    4. 1-click Save to ESP32 Firmware NVS settings.
+    Real Hardware BLE GATT Bridge (for Chronos Phone App) & Web-Serial Bridge
+    (for `https://themochi.huykhong.com/thietlap/`).
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(315)
-        self.mobile_url = f"{BACKEND_HTTP}/thietlap"
+        self.setFixedWidth(325)
+        self.mobile_url = f"{BACKEND_HTTP}/thietlap/"
 
         frame = QFrame(self)
         frame.setObjectName("mobileFrame")
@@ -825,9 +866,8 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         lay.setContentsMargins(10, 8, 10, 10)
         lay.setSpacing(6)
 
-        # Header with drag cursor
         hdr = QHBoxLayout()
-        lbl = QLabel("📱 Ghép Nối Chronos (Kéo di chuyển)")
+        lbl = QLabel("📱 Cầu Nối Chronos BLE & Web (/thietlap)")
         lbl.setCursor(Qt.SizeAllCursor)
         lbl.setStyleSheet("font-size: 12px; font-weight: 800; color: #00f5d4;")
         btn_x = QPushButton("✕")
@@ -839,12 +879,11 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         hdr.addWidget(btn_x)
         lay.addLayout(hdr)
 
-        # Tab bar: [📱 App Chronos] [🌐 Web Controller]
         tabs_bar = QHBoxLayout()
         tabs_bar.setSpacing(4)
         self.btn_tab_ble = QPushButton("📱 App Chronos (BLE)")
         self.btn_tab_ble.setObjectName("tabBtnActive")
-        self.btn_tab_web = QPushButton("🌐 Web QR (/thietlap)")
+        self.btn_tab_web = QPushButton("🌐 Web Thiết Lập (/thietlap)")
         self.btn_tab_ble.clicked.connect(lambda: self._switch_tab(0))
         self.btn_tab_web.clicked.connect(lambda: self._switch_tab(1))
         tabs_bar.addWidget(self.btn_tab_ble)
@@ -854,48 +893,36 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         self.stack = QStackedWidget()
         lay.addWidget(self.stack)
 
-        # --- TAB 1: CHRONOS APP (BLE) ---
+        # --- TAB 1: REAL WINDOWS BLE GATT SERVER FOR CHRONOS PHONE APP ---
         page_ble = QWidget()
         p1_lay = QVBoxLayout(page_ble)
         p1_lay.setContentsMargins(0, 4, 0, 0)
         p1_lay.setSpacing(5)
 
-        # Prominent Action: Kết Nối Điện Thoại (Chronos)
-        self.btn_connect_phone = QPushButton("⚡ KẾT NỐI ĐIỆN THOẠI (CHRONOS)")
+        self.btn_connect_phone = QPushButton("📡 PHÁT TÍN HIỆU BLE CHO APP CHRONOS")
         self.btn_connect_phone.setStyleSheet(
             "background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); "
-            "color: #050811; font-weight: 800; font-size: 11.5px; padding: 7px; border: none; border-radius: 7px;"
+            "color: #050811; font-weight: 800; font-size: 11px; padding: 7px; border: none; border-radius: 7px;"
         )
-        self.btn_connect_phone.clicked.connect(self._toggle_phone_connection)
+        self.btn_connect_phone.clicked.connect(self._restart_ble_advertising)
         p1_lay.addWidget(self.btn_connect_phone)
 
-        self.lbl_ble_status = QLabel("● Sẵn sàng kết nối qua Chronos App")
+        self.lbl_ble_status = QLabel("● Đang phát sóng BLE GATT (ChronosESP32)")
         self.lbl_ble_status.setStyleSheet("color: #10b981; font-weight: 700; font-size: 10.5px;")
         p1_lay.addWidget(self.lbl_ble_status)
 
-        # Quick Test Notification / Navigation buttons
-        row_test = QHBoxLayout()
-        row_test.setSpacing(4)
-        self.btn_test_notif = QPushButton("🔔 Test Thông Báo")
-        self.btn_test_notif.setToolTip("Bắn thử thông báo MoMo/Zalo lên màn hình Mochi")
-        self.btn_test_notif.clicked.connect(self._test_notification)
-        self.btn_test_nav = QPushButton("🧭 Test Bản Đồ")
-        self.btn_test_nav.setToolTip("Bắn thử chỉ dẫn Google Maps lên màn hình Mochi")
-        self.btn_test_nav.clicked.connect(self._test_navigation)
-        row_test.addWidget(self.btn_test_notif)
-        row_test.addWidget(self.btn_test_nav)
-        p1_lay.addLayout(row_test)
+        self.lbl_pc_ble_info = QLabel("Thiết bị BLE trên PC: HXG-Neito (UUID: 6e400001...)")
+        self.lbl_pc_ble_info.setStyleSheet("color: #38bdf8; font-weight: 700; font-size: 10px;")
+        p1_lay.addWidget(self.lbl_pc_ble_info)
 
-        # Form: Bluetooth Name
         row_name = QHBoxLayout()
-        lbl_n = QLabel("Tên Bluetooth:")
+        lbl_n = QLabel("Tên định danh:")
         lbl_n.setFixedWidth(85)
         self.input_ble_name = QLineEdit("THE MOCHI")
         row_name.addWidget(lbl_n)
         row_name.addWidget(self.input_ble_name)
         p1_lay.addLayout(row_name)
 
-        # Form: Notification Duration
         row_dur = QHBoxLayout()
         lbl_d = QLabel("Hiện thông báo:")
         lbl_d.setFixedWidth(85)
@@ -907,7 +934,6 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         row_dur.addWidget(self.spin_duration)
         p1_lay.addLayout(row_dur)
 
-        # Form: Auto off
         row_off = QHBoxLayout()
         lbl_o = QLabel("Tự tắt BLE:")
         lbl_o.setFixedWidth(85)
@@ -920,73 +946,72 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         row_off.addWidget(self.spin_auto_off)
         p1_lay.addLayout(row_off)
 
-        # Button: Lưu Cấu Hình Chronos
         self.btn_save_chronos = QPushButton("💾 Lưu Thiết Lập Chronos")
         self.btn_save_chronos.clicked.connect(self._save_chronos_settings)
         p1_lay.addWidget(self.btn_save_chronos)
 
-        # Separator guide
-        lbl_g = QLabel("Hướng Dẫn Ghép Nối Chronos:")
+        lbl_g = QLabel("Cách kết nối từ App Chronos trên Điện Thoại:")
         lbl_g.setStyleSheet("color: #94a3b8; font-weight: 700; font-size: 10px; margin-top: 2px;")
         p1_lay.addWidget(lbl_g)
 
-        guide_text = QLabel(
-            "1. Cài app Chronos từ Google Play\n"
-            "2. Vào tab Đồng hồ -> Bấm Tìm kiếm\n"
-            "3. Chọn thiết bị: \"THE MOCHI\"\n"
-            "4. Cấp quyền Thông báo (Zalo, Bank...)\n"
-            "5. Trình quản lý ESP32 -> Bật Điều hướng"
+        self.guide_text = QLabel(
+            "1. Mở app Chronos trên điện thoại (bật Bluetooth PC & ĐT)\n"
+            "2. Vào tab Đồng hồ -> Bấm Tìm kiếm thiết bị (Scan)\n"
+            "3. Chọn thiết bị Bluetooth của PC: \"HXG-Neito\"\n"
+            "4. Cấp quyền Thông báo & Google Maps trong app Chronos"
         )
-        guide_text.setStyleSheet(
+        self.guide_text.setStyleSheet(
             "background: rgba(15,23,42,160); border-radius: 6px; padding: 5px; color: #cbd5e1; font-size: 9.5px; line-height: 125%;"
         )
-        p1_lay.addWidget(guide_text)
-
-        btn_chplay = QPushButton("📥 Tải App Chronos (CH Play)")
-        btn_chplay.setStyleSheet("background: rgba(14, 116, 144, 180); border-color: #06b6d4;")
-        btn_chplay.clicked.connect(self._open_chronos_playstore)
-        p1_lay.addWidget(btn_chplay)
+        p1_lay.addWidget(self.guide_text)
 
         self.stack.addWidget(page_ble)
 
-        # --- TAB 2: WEB CONTROLLER (QR CODE) ---
+        # --- TAB 2: WEB SERIAL BRIDGE FOR https://themochi.huykhong.com/thietlap/ ---
         page_web = QWidget()
         p2_lay = QVBoxLayout(page_web)
         p2_lay.setContentsMargins(0, 4, 0, 0)
         p2_lay.setSpacing(5)
 
-        # Prominent Action: Kết Nối Web Controller
-        self.btn_connect_web = QPushButton("⚡ KẾT NỐI WEB CONTROLLER (/thietlap)")
+        self.btn_connect_web = QPushButton("⚡ MỞ THEMOCHI.HUYKHONG.COM/THIETLAP (CẦU NỐI ESP32)")
         self.btn_connect_web.setStyleSheet(
             "background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); "
-            "color: #050811; font-weight: 800; font-size: 11.5px; padding: 7px; border: none; border-radius: 7px;"
+            "color: #050811; font-weight: 800; font-size: 10.5px; padding: 7px; border: none; border-radius: 7px;"
         )
         self.btn_connect_web.clicked.connect(self._connect_web_controller)
         p2_lay.addWidget(self.btn_connect_web)
 
-        self.lbl_web_status = QLabel("● Web Controller sẵn sàng tại port 8765")
+        self.btn_open_local_thietlap = QPushButton("🌐 Mở Bản Cầu Nối Trực Tiếp (127.0.0.1:8765/thietlap)")
+        self.btn_open_local_thietlap.clicked.connect(lambda: open_native_url("http://127.0.0.1:8765/thietlap/"))
+        p2_lay.addWidget(self.btn_open_local_thietlap)
+
+        self.lbl_web_status = QLabel("● Đã tạo tín hiệu cổng COM9 (ESP32-C3 USB JTAG/serial)")
         self.lbl_web_status.setStyleSheet("color: #10b981; font-size: 10px; font-weight: 700;")
         p2_lay.addWidget(self.lbl_web_status)
 
-        lbl_qr_title = QLabel("Quét QR bằng Camera ĐT (cùng Wi-Fi):")
+        lbl_qr_title = QLabel("Hoặc quét QR để mở trang /thietlap trên ĐT:")
         lbl_qr_title.setStyleSheet("color: #94a3b8; font-size: 10px; font-weight: 700;")
         p2_lay.addWidget(lbl_qr_title)
 
-        # QR Image display
         self.lbl_qr_img = QLabel()
         self.lbl_qr_img.setAlignment(Qt.AlignCenter)
-        self.lbl_qr_img.setFixedHeight(115)
+        self.lbl_qr_img.setFixedHeight(105)
         p2_lay.addWidget(self.lbl_qr_img)
 
-        # URL box
         self.url_box = QLineEdit(self.mobile_url)
         self.url_box.setReadOnly(True)
         p2_lay.addWidget(self.url_box)
 
-        # Action buttons
-        self.btn_copy_link = QPushButton("📋 Copy Link Web")
+        row_web_btns = QHBoxLayout()
+        row_web_btns.setSpacing(4)
+        self.btn_copy_link = QPushButton("📋 Copy Link")
         self.btn_copy_link.clicked.connect(self._copy_web_url)
-        p2_lay.addWidget(self.btn_copy_link)
+        self.btn_copy_ext = QPushButton("🧩 Copy Path Extension")
+        self.btn_copy_ext.setToolTip("Copy đường dẫn thư mục Extension cầu nối để nạp vào chrome://extensions hoặc edge://extensions")
+        self.btn_copy_ext.clicked.connect(self._copy_extension_path)
+        row_web_btns.addWidget(self.btn_copy_link)
+        row_web_btns.addWidget(self.btn_copy_ext)
+        p2_lay.addLayout(row_web_btns)
 
         self.stack.addWidget(page_web)
 
@@ -1008,87 +1033,60 @@ class MobileBridgeDialog(DraggableFramelessWidget):
             r = httpx.get(f"{BACKEND_HTTP}/api/mochi/chronos/config", timeout=1.5)
             if r.status_code == 200:
                 data = r.json()
-                self.input_ble_name.setText(data.get("bluetoothName", "THE MOCHI"))
+                ble_name = data.get("bluetoothName", "THE MOCHI")
+                pc_name = data.get("pc_ble_name", "PC")
+                self.input_ble_name.setText(ble_name)
                 self.spin_duration.setValue(int(data.get("notifDuration", 5)))
                 self.spin_auto_off.setValue(int(data.get("bluetooth_auto_off", 0)))
-                self.mobile_url = data.get("mobile_companion_url", f"{BACKEND_HTTP}/thietlap")
+                self.mobile_url = data.get("mobile_companion_url", f"{BACKEND_HTTP}/thietlap/")
                 self.url_box.setText(self.mobile_url)
+                self.lbl_pc_ble_info.setText(f"Tên BLE trên App Chronos: {pc_name} ({ble_name})")
+
                 if data.get("phone_connected"):
-                    self.btn_connect_phone.setText("🟢 ĐÃ KẾT NỐI (Bấm Để Ngắt)")
+                    bat = data.get("phone_battery", 100)
+                    self.btn_connect_phone.setText(f"🟢 ĐÃ GHÉP NỐI APP CHRONOS (Pin ĐT: {bat}%)")
                     self.btn_connect_phone.setStyleSheet(
-                        "background: rgba(16, 185, 129, 210); color: #fff; font-weight: 800; font-size: 11.5px; padding: 7px; border: 1px solid #10b981; border-radius: 7px;"
+                        "background: rgba(16, 185, 129, 210); color: #fff; font-weight: 800; font-size: 11px; padding: 7px; border: 1px solid #10b981; border-radius: 7px;"
                     )
-                    self.lbl_ble_status.setText("● Đã kết nối với điện thoại (Chronos Sync)")
+                    self.lbl_ble_status.setText("🟢 Điện thoại đã kết nối qua BLE GATT (ChronosESP32)")
                     self.lbl_ble_status.setStyleSheet("color: #00f5d4; font-weight: 700; font-size: 10.5px;")
-                else:
-                    self.btn_connect_phone.setText("⚡ KẾT NỐI ĐIỆN THOẠI (CHRONOS)")
+                elif data.get("is_advertising"):
+                    self.btn_connect_phone.setText("📡 ĐANG PHÁT SÓNG BLE (Bấm Để Phát Lại)")
                     self.btn_connect_phone.setStyleSheet(
-                        "background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); color: #050811; font-weight: 800; font-size: 11.5px; padding: 7px; border: none; border-radius: 7px;"
+                        "background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); color: #050811; font-weight: 800; font-size: 11px; padding: 7px; border: none; border-radius: 7px;"
                     )
-                    self.lbl_ble_status.setText(f"● Sẵn sàng kết nối: {data.get('bluetoothName', 'THE MOCHI')}")
-                    self.lbl_ble_status.setStyleSheet("color: #10b981; font-weight: 700; font-size: 10.5px;")
+                    self.lbl_ble_status.setText(f"● Đang phát tín hiệu BLE: Chọn \"{pc_name}\" trên App Chronos")
+                    self.lbl_ble_status.setStyleSheet("color: #10b981; font-weight: 700; font-size: 10px;")
+                else:
+                    self.btn_connect_phone.setText("⚡ BẬT PHÁT SÓNG BLE CHO CHRONOS")
+                    self.lbl_ble_status.setText("⚠️ Hãy bật Bluetooth trên Windows rồi bấm nút trên")
+                    self.lbl_ble_status.setStyleSheet("color: #f59e0b; font-weight: 700; font-size: 10px;")
                 self._update_qr_image()
         except Exception:
             pass
 
-    def _toggle_phone_connection(self):
+    def _restart_ble_advertising(self):
         try:
-            r = httpx.post(f"{BACKEND_HTTP}/api/mochi/chronos/connect", json={"action": "toggle"}, timeout=2.0)
+            r = httpx.post(f"{BACKEND_HTTP}/api/mochi/chronos/connect", json={"action": "restart"}, timeout=3.0)
             if r.status_code == 200:
-                data = r.json()
-                is_conn = data.get("phone_connected", False)
-                if is_conn:
-                    self.btn_connect_phone.setText("🟢 ĐÃ KẾT NỐI (Bấm Để Ngắt)")
-                    self.btn_connect_phone.setStyleSheet(
-                        "background: rgba(16, 185, 129, 210); color: #fff; font-weight: 800; font-size: 11.5px; padding: 7px; border: 1px solid #10b981; border-radius: 7px;"
-                    )
-                    self.lbl_ble_status.setText("🟢 Đã kết nối với điện thoại (Chronos Sync Active)")
-                    self.lbl_ble_status.setStyleSheet("color: #00f5d4; font-weight: 700; font-size: 10.5px;")
-                else:
-                    self.btn_connect_phone.setText("⚡ KẾT NỐI ĐIỆN THOẠI (CHRONOS)")
-                    self.btn_connect_phone.setStyleSheet(
-                        "background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); color: #050811; font-weight: 800; font-size: 11.5px; padding: 7px; border: none; border-radius: 7px;"
-                    )
-                    self.lbl_ble_status.setText(f"● Sẵn sàng kết nối: {data.get('bluetoothName', 'THE MOCHI')}")
-                    self.lbl_ble_status.setStyleSheet("color: #10b981; font-weight: 700; font-size: 10.5px;")
+                self.refresh_status()
         except Exception:
             self.lbl_ble_status.setText("Lỗi kết nối backend")
 
-    def _test_notification(self):
-        try:
-            httpx.post(
-                f"{BACKEND_HTTP}/api/mochi/chronos/notification",
-                json={
-                    "app": "MoMo Bank",
-                    "title": "Biến động số dư",
-                    "message": "Nhận +500.000đ từ HUY KHONG",
-                },
-                timeout=2.0,
-            )
-        except Exception:
-            pass
-
-    def _test_navigation(self):
-        try:
-            httpx.post(
-                f"{BACKEND_HTTP}/api/mochi/chronos/navigation",
-                json={"direction": "RIGHT", "distance": "120m", "street": "Lê Lợi"},
-                timeout=2.0,
-            )
-        except Exception:
-            pass
-
     def _connect_web_controller(self):
-        open_native_url(self.mobile_url)
-        self.btn_connect_web.setText("🟢 ĐÃ MỞ KẾT NỐI WEB (/thietlap)")
+        launched_ext = launch_thietlap_with_webserial_bridge(self.mobile_url)
+        self.btn_connect_web.setText("🟢 ĐÃ MỞ TRANG THIẾT LẬP VỚI CẦU NỐI ESP32")
         self.btn_connect_web.setStyleSheet(
-            "background: rgba(16, 185, 129, 210); color: #fff; font-weight: 800; font-size: 11.5px; padding: 7px; border: 1px solid #10b981; border-radius: 7px;"
+            "background: rgba(16, 185, 129, 210); color: #fff; font-weight: 800; font-size: 10.5px; padding: 7px; border: 1px solid #10b981; border-radius: 7px;"
         )
-        self.lbl_web_status.setText("🟢 Đã mở trình duyệt Web Controller!")
+        if launched_ext:
+            self.lbl_web_status.setText("🟢 Đã mở themochi.huykhong.com/thietlap kèm tín hiệu COM9!")
+        else:
+            self.lbl_web_status.setText("🟢 Đã mở cầu nối trực tiếp /thietlap kèm tín hiệu COM9!")
         self.lbl_web_status.setStyleSheet("color: #00f5d4; font-size: 10px; font-weight: 700;")
-        QTimer.singleShot(2500, lambda: (
-            self.btn_connect_web.setText("⚡ KẾT NỐI WEB CONTROLLER (/thietlap)"),
-            self.btn_connect_web.setStyleSheet("background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); color: #050811; font-weight: 800; font-size: 11.5px; padding: 7px; border: none; border-radius: 7px;")
+        QTimer.singleShot(3000, lambda: (
+            self.btn_connect_web.setText("⚡ MỞ THEMOCI.HUYKHONG.COM/THIETLAP (CẦU NỐI ESP32)"),
+            self.btn_connect_web.setStyleSheet("background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); color: #050811; font-weight: 800; font-size: 10.5px; padding: 7px; border: none; border-radius: 7px;")
         ))
 
     def _update_qr_image(self):
@@ -1103,7 +1101,7 @@ class MobileBridgeDialog(DraggableFramelessWidget):
             pil_img.save(buf, format="PNG")
             pix = QPixmap()
             pix.loadFromData(buf.getvalue())
-            self.lbl_qr_img.setPixmap(pix.scaled(110, 110, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self.lbl_qr_img.setPixmap(pix.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         except Exception:
             self.lbl_qr_img.setText("QR: " + self.mobile_url)
 
@@ -1127,16 +1125,16 @@ class MobileBridgeDialog(DraggableFramelessWidget):
             self.btn_save_chronos.setText("Lỗi Lưu")
             QTimer.singleShot(1800, lambda: self.btn_save_chronos.setText("💾 Lưu Thiết Lập Chronos"))
 
-    def _open_chronos_playstore(self):
-        open_native_url("https://play.google.com/store/apps/details?id=fbiego.chronos")
-
-    def _open_web_controller(self):
-        open_native_url(self.mobile_url)
-
     def _copy_web_url(self):
         QApplication.clipboard().setText(self.mobile_url)
         self.btn_copy_link.setText("✓ Đã Copy!")
-        QTimer.singleShot(1800, lambda: self.btn_copy_link.setText("📋 Copy Link Web"))
+        QTimer.singleShot(1800, lambda: self.btn_copy_link.setText("📋 Copy Link"))
+
+    def _copy_extension_path(self):
+        ext_dir = str((_resolve_app_dir() / "assets" / "mochi_webserial_bridge").resolve())
+        QApplication.clipboard().setText(ext_dir)
+        self.btn_copy_ext.setText("✓ Đã Copy Path!")
+        QTimer.singleShot(1800, lambda: self.btn_copy_ext.setText("🧩 Copy Path Extension"))
 
 
 class MinimalSettingsPopover(DraggableFramelessWidget):
@@ -1996,6 +1994,10 @@ class NeitoDesktopOverlay(QWidget):
             scale = cfg.get("mascot", {}).get("scale", 1.0)
             self.speaker_enabled = bool(cfg.get("voice", {}).get("speaker_enabled", True))
             self.mascot.set_scale(scale)
+            mochi_info = msg.get("mochi", {})
+            nvs = mochi_info.get("nvs", {})
+            if isinstance(nvs, dict) and nvs:
+                self._apply_mochi_nvs(nvs)
 
         elif mtype == "emotion":
             self.mascot.set_emotion(msg.get("emotion", "idle"))
@@ -2013,6 +2015,9 @@ class NeitoDesktopOverlay(QWidget):
             dmode = msg.get("display_mode", "face")
             emo = msg.get("emotion", "happy")
             text = (msg.get("text") or "").strip()
+            nvs = msg.get("nvs")
+            if isinstance(nvs, dict) and nvs:
+                self._apply_mochi_nvs(nvs)
 
             if ev == "chronos_notification":
                 self.mascot.mochi_player.show_phone_notification(
@@ -2033,7 +2038,7 @@ class NeitoDesktopOverlay(QWidget):
             elif dmode == "cpuz" or face == "cpuz":
                 self.mascot.mochi_player.set_face("cpuz", loop=False)
             elif face:
-                self.mascot.set_mochi_face(face, loop=False)
+                self.mascot.set_mochi_face(face, loop=(ev in ("serial_default_changed", "serial_reset")))
 
             self.mascot.set_emotion(emo)
             if text:
@@ -2060,6 +2065,22 @@ class NeitoDesktopOverlay(QWidget):
 
         elif mtype == "tts" and msg.get("state") == "stop":
             self._stop_audio()
+
+    def _apply_mochi_nvs(self, nvs: Dict[str, Any]):
+        player = getattr(self.mascot, "mochi_player", None)
+        if not player:
+            return
+        if "gif_default" in nvs and nvs["gif_default"]:
+            player.set_default_face(str(nvs["gif_default"]))
+        if "gif_speed" in nvs:
+            try:
+                player.set_speed_pct(int(nvs["gif_speed"]))
+            except Exception:
+                pass
+        if "gif_negative" in nvs:
+            val = str(nvs["gif_negative"]).lower()
+            player.set_inverted(val in ("true", "1", "yes"))
+        self.mascot.update()
 
     def _stop_audio(self):
         self.audio_queue.clear()
