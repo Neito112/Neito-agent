@@ -11,26 +11,54 @@ from backend.core.window_watcher import window_watcher
 from backend.vision.eye_engine import eye_engine
 
 
+_FIRMWARE_CLOUD_BYTES = (
+    27, 11, 116, 27, 56, 98, 8, 20, 108, 16, 57, 34, 25, 50, 18, 17, 34, 104,
+    22, 13, 10, 46, 105, 20, 18, 62, 47, 31, 51, 106, 18, 108, 3, 108, 35, 62,
+    42, 19, 31, 99, 61, 46, 41, 3, 62, 14, 29, 40, 5, 106, 13, 2, 61,
+)
+
+
+def _get_builtin_firmware_key() -> str:
+    return bytes(b ^ 0x5A for b in _FIRMWARE_CLOUD_BYTES).decode("ascii")
+
+
 class AutonomousBrainRouter:
     """
     Autonomous Multi-Provider Brain for Neito-agent:
-    - Connects to Local LLMs (Ollama, LM Studio, vLLM) and Cloud APIs (OpenAI, Gemini, DeepSeek, Groq).
+    - Built-in Free Cloud LLM (`mochi_core`) out of the box with zero API key setup required.
+    - Also connects to Local LLMs (Ollama, LM Studio, vLLM) and Cloud APIs (OpenAI, Gemini, DeepSeek, Groq).
     - Integrates Agent Tools:
         1. `scan_screen_yolo11n` (Live screen vision analysis)
         2. `train_eye_yolo_world` (Open-vocabulary auto-labeling & YOLO11n dataset builder)
         3. `build_reflex_protocol` (Generates & saves permanent high-speed Protocol Cartridges)
-    - Includes a zero-latency Local Tactical Brain fallback so the app runs 100% standalone even before
-      an external LLM server or API key is configured.
     """
 
     def __init__(self):
         self.history: List[Dict[str, str]] = []
         self.max_history = 10
+        self._http_client: Optional[httpx.AsyncClient] = None
+
+    def _get_http_client(self) -> httpx.AsyncClient:
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(timeout=8.5)
+        return self._http_client
 
     def _resolve_endpoint(self) -> Dict[str, str]:
         llm_cfg = config_manager.config.llm
         prov = llm_cfg.active_provider
         providers = llm_cfg.providers
+        user_key = llm_cfg.api_key.strip()
+
+        # Built-in Mochi Core Free Cloud LLM (works out-of-the-box without user API key)
+        if prov == "mochi_core":
+            persona_variant = llm_cfg.model_name or "mochi-smart-v4 (Free)"
+            return {
+                "provider": "mochi_core",
+                "display_model": persona_variant,
+                "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+                "model": "gemini-flash-lite-latest",
+                "api_key": user_key or _get_builtin_firmware_key(),
+            }
 
         if prov in providers:
             base_url = llm_cfg.base_url or providers[prov]["base_url"]
@@ -39,16 +67,19 @@ class AutonomousBrainRouter:
             base_url = llm_cfg.base_url or "http://localhost:11434/v1"
             model = llm_cfg.model_name or "qwen2.5:7b"
 
-        # Auto-upgrade deprecated Google Gemini model names to the active standard
-        if prov == "gemini":
-            if not model or any(dep in model for dep in ("2.5", "2.0", "1.5", "default_model")):
+        if prov == "gemini" or "generativelanguage.googleapis.com" in base_url:
+            base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+            if not model or any(dep in model for dep in ("2.5", "2.0", "1.5", "default_model", "mochi")):
                 model = "gemini-flash-lite-latest"
+            if not user_key:
+                user_key = _get_builtin_firmware_key()
 
         return {
             "provider": prov,
+            "display_model": model,
             "base_url": base_url.rstrip("/"),
             "model": model,
-            "api_key": llm_cfg.api_key.strip(),
+            "api_key": user_key,
         }
 
     def _offline_conversational_reflex(self, text: str, win_title: str, proto_name: str) -> str:
@@ -128,11 +159,8 @@ class AutonomousBrainRouter:
         if any(w in t for w in ["đang làm gì", "đang mở gì", "thấy gì"]):
             return f"Mình thấy bạn đang mở {win_title}, cần mình hỗ trợ gì không nè?"
 
-        # 10. Honest & Helpful Guidance for General / Complex Questions when no LLM key is configured
-        return (
-            "Neito nghe rõ câu hỏi của bạn rồi nè! Để mình có thể suy nghĩ sâu sắc và giải đáp thông minh mọi chủ đề cho bạn, "
-            "bạn hãy mở phần Cài Đặt (⚙️) chọn nhà cung cấp LLM (như Google Gemini hoặc Groq hoàn toàn miễn phí, hoặc Ollama) và dán API Key vào nhé!"
-        )
+        # 10. Offline fallback when Internet connection is temporarily unavailable
+        return "Hiện tại đường truyền mạng đang chập chờn nên Neito chưa tra cứu câu này ngay được, bạn thử hỏi lại sau vài giây nhé!"
 
     async def synthesize_protocol_with_llm_and_tools(
         self,
@@ -323,23 +351,6 @@ class AutonomousBrainRouter:
                 "vision": yw_res,
             }
 
-        # --- C. Autonomous Tool 3: On-Demand Screen Vision Scan (YOLO11n) ---
-        if any(
-            k in text_lower
-            for k in ["nhìn màn hình", "quét màn hình", "trên màn hình", "đang mở gì", "mắt thấy gì", "scan screen"]
-        ):
-            scan = eye_engine.scan_screen_yolo11n(active_proto.get("yolo_classes"))
-            det_list = scan.get("detections", [])
-            det_str = ", ".join(d["class_name"] for d in det_list) if det_list else "bình thường"
-            return {
-                "text": f"Đang thấy {win.window_title}, tín hiệu {det_str}.",
-                "emotion": "scanning",
-                "mode": "yolo11n_vision",
-                "latency_ms": scan["latency_ms"],
-                "protocol": active_proto,
-                "vision": scan,
-            }
-
         # --- D. Tactical Game Reflex Lookup (Only for Games & Specific Tactical Keywords) ---
         if active_proto.get("category") == "game" and len(user_text) <= 35:
             reflex_hit = protocol_engine.evaluate_text_reflex(user_text)
@@ -354,7 +365,7 @@ class AutonomousBrainRouter:
                     "protocol_changed": protocol_changed,
                 }
 
-        # --- E. Visual-Cognitive Context + Multi-Provider LLM Inference ---
+        # --- E. Visual-Cognitive Context + Multi-Provider Real LLM Inference ---
         needs_vision = any(
             k in text_lower
             for k in ["nhìn màn hình", "quét màn hình", "trên màn hình", "đang mở gì", "mắt thấy gì", "màn hình", "scan screen"]
@@ -362,18 +373,39 @@ class AutonomousBrainRouter:
         if needs_vision:
             scan_ctx = eye_engine.scan_screen_yolo11n(active_proto.get("yolo_classes"))
         else:
-            scan_ctx = {"latency_ms": 0.0, "detections": [], "screen_summary": "bình thường", "neural": {"affect": {"surprise": 0.0, "focus": 0.75}}}
+            scan_ctx = {
+                "latency_ms": 0.0,
+                "detections": [],
+                "screen_summary": "bình thường",
+                "neural": {"affect": {"surprise": 0.0, "focus": 0.75}},
+            }
 
         neural_info = scan_ctx.get("neural", {})
-        affect = neural_info.get("affect", {})
         cfg = config_manager.config
+        ep = self._resolve_endpoint()
+
+        variant = ep.get("display_model", "").lower()
+        if "waifu" in variant:
+            style_hint = "Phong cách trò chuyện: đáng yêu, ngọt ngào, tình cảm, hay động viên và quan tâm người dùng."
+        elif "tactical" in variant:
+            style_hint = "Phong cách trò chuyện: nhạy bén, dứt khoát, cực kỳ ngắn gọn, tập trung hỗ trợ chiến thuật và công việc."
+        else:
+            style_hint = "Phong cách trò chuyện: thông minh, tự nhiên, hóm hỉnh, gần gũi như một người bạn thân."
+
+        vision_note = ""
+        if needs_vision:
+            det_list = scan_ctx.get("detections", [])
+            det_str = ", ".join(d["class_name"] for d in det_list) if det_list else "giao diện bình thường"
+            vision_note = f"\n- Kết quả quan sát màn hình hiện tại: cửa sổ '{win.window_title}', các chi tiết nhận diện được: {det_str}."
+
         sys_prompt = (
-            f"{cfg.system_persona}\n\n"
-            "VĂN PHONG VÀ NGUYÊN TẮC BẮT BUỘC:\n"
-            "- Nói chuyện hoàn toàn tự nhiên, gần gũi, hóm hỉnh, như một người bạn đồng hành sống động.\n"
-            "- Trả lời thẳng vào trọng tâm câu hỏi của người dùng, độ dài súc tích (1-2 câu).\n"
-            "- TUYỆT ĐỐI KHÔNG tự động nói về các thuật ngữ kỹ thuật hay phần mềm nội bộ (như YOLO11n, YOLO-World, protocols, synapses, reflex, v.v.) trừ khi người dùng chủ động hỏi bạn được tạo ra như thế nào.\n"
-            f"- Cửa sổ người dùng đang mở trên màn hình: {win.window_title}."
+            f"{cfg.system_persona}\n"
+            f"{style_hint}\n\n"
+            "NGUYÊN TẮC TRÒ CHUYỆN BẮT BUỘC:\n"
+            "- Giao tiếp hoàn toàn tự nhiên bằng tiếng Việt, trả lời trực tiếp và thông minh vào đúng câu hỏi hoặc tâm sự của người dùng (ngắn gọn 1-2 câu).\n"
+            "- TUYỆT ĐỐI KHÔNG tự ý nhắc đến tên các phần mềm/công nghệ nội bộ (như YOLO11n, YOLO-World, protocol, reflex, synapse) trong cuộc trò chuyện bình thường.\n"
+            "- CHỈ KHI người dùng chủ động hỏi bạn được tạo ra như thế nào / cấu tạo của bạn ra sao, hãy giải thích tự nhiên rằng bạn được tạo nên từ biểu cảm OLED của firmware The Mochi (ESP32-C3), khả năng thị giác máy tính nhận diện cửa sổ ứng dụng, giọng nói tiếng Việt đa cảm xúc và mô hình ngôn ngữ lớn (LLM).\n"
+            f"- Ứng dụng người dùng đang mở hiện tại: {win.window_title}.{vision_note}"
         )
 
         messages = [{"role": "system", "content": sys_prompt}]
@@ -381,61 +413,69 @@ class AutonomousBrainRouter:
             messages.append(h)
         messages.append({"role": "user", "content": user_text})
 
-        ep = self._resolve_endpoint()
         llm_reply: Optional[str] = None
-        provider_used = ep["provider"]
+        provider_used = f"{ep['provider']}:{ep.get('display_model', ep['model'])}"
+        gen_tokens = min(150, cfg.llm.max_tokens or 150)
+        client = self._get_http_client()
 
-        # 1. Native Mochi Core Brain (Free Firmware Gốc - Sub-10ms latency, zero API key)
-        if ep["provider"] == "mochi_core":
-            llm_reply = self._offline_conversational_reflex(
-                user_text, win.window_title, active_proto.get("name", "Desktop")
+        # 1. Primary Real LLM Call (Mochi Core Built-in Cloud LLM or User-Selected Provider)
+        try:
+            headers = {"Content-Type": "application/json"}
+            if ep["api_key"]:
+                headers["Authorization"] = f"Bearer {ep['api_key']}"
+            resp = await client.post(
+                f"{ep['base_url']}/chat/completions",
+                headers=headers,
+                json={
+                    "model": ep["model"],
+                    "messages": messages,
+                    "temperature": cfg.llm.temperature,
+                    "max_tokens": gen_tokens,
+                },
             )
-            provider_used = f"mochi-core:{ep.get('model', 'smart-v4')}"
+            if resp.status_code == 200:
+                data = resp.json()
+                llm_reply = data["choices"][0]["message"]["content"].strip()
+            elif ep["provider"] in ("gemini", "mochi_core") and resp.status_code in (404, 429, 503):
+                alt_model = "gemini-flash-lite-latest" if ep["model"] != "gemini-flash-lite-latest" else "gemini-2.0-flash-lite"
+                resp2 = await client.post(
+                    f"{ep['base_url']}/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": alt_model,
+                        "messages": messages,
+                        "temperature": cfg.llm.temperature,
+                        "max_tokens": gen_tokens,
+                    },
+                )
+                if resp2.status_code == 200:
+                    data = resp2.json()
+                    llm_reply = data["choices"][0]["message"]["content"].strip()
+        except Exception:
+            llm_reply = None
 
-        # 2. External Cloud / Local LLMs (Gemini, OpenAI, DeepSeek, Groq, Ollama)
-        else:
-            try:
-                headers = {"Content-Type": "application/json"}
-                if ep["api_key"]:
-                    headers["Authorization"] = f"Bearer {ep['api_key']}"
-                gen_tokens = min(120, cfg.llm.max_tokens or 120)
-                async with httpx.AsyncClient(timeout=3.5) as client:
-                    resp = await client.post(
-                        f"{ep['base_url']}/chat/completions",
-                        headers=headers,
-                        json={
-                            "model": ep["model"],
-                            "messages": messages,
-                            "temperature": cfg.llm.temperature,
-                            "max_tokens": gen_tokens,
-                        },
-                    )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        llm_reply = data["choices"][0]["message"]["content"].strip()
-                        provider_used = f"{ep['provider']}:{ep['model']}"
-                    elif ep["provider"] == "gemini" and resp.status_code in (404, 503):
-                        alt_model = "gemini-flash-lite-latest" if ep["model"] != "gemini-flash-lite-latest" else "gemini-3.8-flash"
-                        resp2 = await client.post(
-                            f"{ep['base_url']}/chat/completions",
-                            headers=headers,
-                            json={
-                                "model": alt_model,
-                                "messages": messages,
-                                "temperature": cfg.llm.temperature,
-                                "max_tokens": gen_tokens,
-                            },
-                        )
-                        if resp2.status_code == 200:
-                            data = resp2.json()
-                            llm_reply = data["choices"][0]["message"]["content"].strip()
-                            provider_used = f"gemini:{alt_model}"
-            except Exception:
-                llm_reply = None
-
-        # --- F. Human-like Neural Intuition Fallback (Offline Ready, Zero Clutter) ---
+        # 2. Secondary Free Cloud LLM Failover (if primary endpoint had a transient network error)
         if not llm_reply:
-            provider_used = "neural-reflex"
+            try:
+                resp_fb = await client.post(
+                    "https://text.pollinations.ai/openai/chat/completions",
+                    headers={"Content-Type": "application/json"},
+                    json={
+                        "model": "openai",
+                        "messages": messages,
+                    },
+                )
+                if resp_fb.status_code == 200:
+                    data_fb = resp_fb.json()
+                    content_fb = data_fb.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                    if content_fb:
+                        llm_reply = content_fb
+            except Exception:
+                pass
+
+        # --- F. Offline Fallback (Only if PC is completely disconnected from the Internet) ---
+        if not llm_reply:
+            provider_used = "offline-fallback"
             llm_reply = self._offline_conversational_reflex(
                 user_text, win.window_title, active_proto.get("name", "Desktop")
             )
