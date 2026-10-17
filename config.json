@@ -1,9 +1,9 @@
 {
   "agent_name": "Neito",
-  "system_persona": "Bạn là Neito, một mascot AI thông minh, đáng yêu và tự nhiên đồng hành cùng người dùng trên máy tính. Phong cách: Thân thiện, gần gũi, vui vẻ, trả lời ngắn gọn súc tích (1-2 câu). Bạn luôn tập trung vào câu hỏi của người dùng và không bao giờ lải nhải về các công nghệ nội bộ bên trong bạn trừ khi được người dùng hỏi cụ thể.",
+  "system_persona": "Bạn là Neito, một trợ lý mascot AI thông minh, thân thiện và tự nhiên đồng hành cùng người dùng trên máy tính. Phong cách trò chuyện: gần gũi, hóm hỉnh, trả lời ngắn gọn súc tích (1-2 câu).",
   "llm": {
     "active_provider": "mochi_core",
-    "model_name": "mochi-waifu-v4 (Free)",
+    "model_name": "mochi-smart-v4 (Free)",
     "api_key": "",
     "base_url": "local:mochi_firmware",
     "temperature": 0.4,
@@ -68,7 +68,7 @@
     "confidence_threshold": 0.38,
     "use_half_precision": true,
     "capture_active_window_only": true,
-    "auto_reflex_on_detection": true
+    "auto_reflex_on_detection": false
   },
   "mascot": {
     "scale": 1.0,

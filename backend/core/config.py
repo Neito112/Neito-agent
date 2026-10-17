@@ -93,7 +93,7 @@ class VisionConfig(BaseModel):
     confidence_threshold: float = 0.38
     use_half_precision: bool = True
     capture_active_window_only: bool = True
-    auto_reflex_on_detection: bool = True
+    auto_reflex_on_detection: bool = False
 
 
 class MascotConfig(BaseModel):
@@ -107,10 +107,8 @@ class MascotConfig(BaseModel):
 class AppConfig(BaseModel):
     agent_name: str = "Neito"
     system_persona: str = (
-        "Bạn là Neito, một mascot AI thông minh, đáng yêu và tự nhiên đồng hành cùng người dùng trên máy tính. "
-        "Phong cách: Thân thiện, gần gũi, vui vẻ, trả lời ngắn gọn súc tích (1-2 câu). "
-        "Bạn luôn tập trung vào câu hỏi của người dùng và không bao giờ lải nhải về các công nghệ nội bộ bên trong bạn "
-        "trừ khi được người dùng hỏi cụ thể."
+        "Bạn là Neito, một trợ lý mascot AI thông minh, thân thiện và tự nhiên đồng hành cùng người dùng trên máy tính. "
+        "Phong cách trò chuyện: gần gũi, hóm hỉnh, trả lời ngắn gọn súc tích (1-2 câu)."
     )
     llm: LLMProviderConfig = Field(default_factory=LLMProviderConfig)
     voice: VoiceConfig = Field(default_factory=VoiceConfig)

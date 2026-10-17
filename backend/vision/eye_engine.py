@@ -111,21 +111,19 @@ class NeitoEyeEngine:
 
     def scan_screen_yolo11n(self, target_classes: Optional[List[str]] = None) -> Dict[str, Any]:
         """
-        Executes a realtime screen scan using YOLO11n (if weights loaded and not in ultra-eco fallback)
-        plus Zero-Overhead HUD Heuristic analysis for game bars, alerts, and UI regions.
+        Executes a screen scan using YOLO11n on the active window.
         """
         t0 = time.perf_counter()
         cfg = config_manager.config.vision
         cap = self.capture_screen(active_window_only=cfg.capture_active_window_only)
         img: Image.Image = cap["image"]
         arr = np.asarray(img)
-        h, w, _ = arr.shape
+        brightness = float(np.mean(arr))
 
         detections: List[Dict[str, Any]] = []
-        engine_used = "yolo11n-eco-hybrid"
+        engine_used = "yolo11n"
 
-        # 1. If Ultralytics YOLO11n is loaded & gaming_eco_mode allows neural pass
-        if not config_manager.config.mascot.gaming_eco_mode and self._check_ultralytics():
+        if self._check_ultralytics():
             model = self._load_yolo11n(cfg.detector_model)
             if model is not None:
                 try:
@@ -148,50 +146,9 @@ class NeitoEyeEngine:
                 except Exception:
                     pass
 
-        # 2. Ultra-Fast HUD & Visual Feature Scanner (<1.5ms on CPU, 0 MB VRAM)
-        # Analyzes top/bottom HUD regions, critical red alerts, and active protocol classes
-        r_chan = arr[:, :, 0].astype(np.int16)
-        g_chan = arr[:, :, 1].astype(np.int16)
-        b_chan = arr[:, :, 2].astype(np.int16)
-
-        # Check critical red dominance in HUD corners (top-left/bottom-left health bar or center error alert)
-        red_mask = (r_chan > 185) & (g_chan < 65) & (b_chan < 65)
-        top_hud_red_ratio = float(np.mean(red_mask[: int(h * 0.22), : int(w * 0.45)]))
-        center_red_ratio = float(np.mean(red_mask[int(h * 0.35) : int(h * 0.65), int(w * 0.3) : int(w * 0.7)]))
-        brightness = float(np.mean(arr))
-
-        active_classes = target_classes or ["hud_element", "dialog_box"]
-
-        if top_hud_red_ratio > 0.045:
-            cls = "player_hp_low" if "player_hp_low" in active_classes else active_classes[0]
-            detections.append(
-                {
-                    "class_name": cls,
-                    "confidence": round(min(0.96, 0.55 + top_hud_red_ratio * 4), 2),
-                    "bbox": [int(w * 0.03), int(h * 0.03), int(w * 0.35), int(h * 0.14)],
-                    "source": "yolo11n-hud",
-                }
-            )
-
-        if center_red_ratio > 0.055:
-            cls = "error_alert" if "error_alert" in active_classes else "boss_health_bar"
-            detections.append(
-                {
-                    "class_name": cls,
-                    "confidence": round(min(0.95, 0.52 + center_red_ratio * 3.5), 2),
-                    "bbox": [int(w * 0.3), int(h * 0.35), int(w * 0.7), int(h * 0.65)],
-                    "source": "yolo11n-hud",
-                }
-            )
-
-        # 3. Feed visual frame & YOLO11n detections into Visual-Cognitive Neural Network
-        from backend.brain.neural_cognition import neural_cognition
         win = cap["window"]
-        neural_cognition.switch_app_circuit(win["process_name"])
-        neural_state = neural_cognition.forward_and_learn(img, detections, win["window_title"])
-
         latency_ms = round((time.perf_counter() - t0) * 1000, 2)
-        det_short = ", ".join(d["class_name"] for d in detections) if detections else "ổn định"
+        det_short = ", ".join(d["class_name"] for d in detections) if detections else "bình thường"
         summary = f"{win['window_title']} ({det_short})"
 
         self.last_scan_result = {
@@ -201,7 +158,6 @@ class NeitoEyeEngine:
             "window": win,
             "detections": detections,
             "brightness": round(brightness, 1),
-            "neural": neural_state,
             "screen_summary": summary,
         }
         return self.last_scan_result

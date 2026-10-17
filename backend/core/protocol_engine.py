@@ -41,17 +41,7 @@ DEFAULT_PROTOCOLS: List[Dict[str, Any]] = [
             "shortcuts": "Alt+Space: Gọi nhanh Neito | Cuộn chuột giữa trên Mascot: Phóng to/Thu nhỏ.",
             "about_me": "Neito là mascot AI desktop thân thiện, thông minh, hỗ trợ bạn học tập, làm việc và giải trí.",
         },
-        "reflex_rules": [
-            {
-                "id": "rx_vision_error",
-                "trigger_type": "vision",
-                "target_class": "error_alert",
-                "min_conf": 0.60,
-                "response": "Hình như vừa có thông báo hoặc cảnh báo trên màn hình kìa bạn, bạn kiểm tra xem nhé!",
-                "emotion": "alert",
-                "cooldown_sec": 30,
-            },
-        ],
+        "reflex_rules": [],
     },
     {
         "id": "elden_ring_combat",
@@ -253,11 +243,13 @@ class ReflexProtocolEngine:
 
     def match_window_to_protocol(self, process_name: str, window_title: str) -> Tuple[bool, Dict[str, Any]]:
         """
-        100% Autonomous Context Loader:
-        Matches active OS process/title to the right Protocol Cartridge.
-        If a new app/game is opened for the first time, automatically synthesizes
-        and persists a dedicated Protocol Cartridge for it without manual user action.
+        Matches active OS process/title to the corresponding saved Protocol Cartridge.
         """
+        if self.locked_protocol_id and self.locked_protocol_id in self.protocols:
+            changed = self.active_protocol_id != self.locked_protocol_id
+            self.active_protocol_id = self.locked_protocol_id
+            return changed, self.get_active_protocol()
+
         proc_lower = (process_name or "").lower().strip()
         title_lower = (window_title or "").lower().strip()
 
@@ -273,48 +265,6 @@ class ReflexProtocolEngine:
             if any(k and k in title_lower for k in kw_list):
                 matched_id = pid
                 break
-
-        # Auto-generate a permanent protocol cartridge for any newly encountered app/game
-        generic_procs = {
-            "",
-            "desktop",
-            "explorer.exe",
-            "unknown.exe",
-            "searchhost.exe",
-            "shellexperiencehost.exe",
-            "applicationframehost.exe",
-        }
-        if matched_id is None and proc_lower not in generic_procs:
-            app_stem = proc_lower.replace(".exe", "").strip()
-            clean_id = re.sub(r"[^a-z0-9_]+", "_", app_stem).strip("_")
-            if clean_id and len(clean_id) >= 2:
-                display_name = window_title.split("-")[-1].strip() if "-" in window_title else app_stem.title()
-                auto_proto = {
-                    "id": f"auto_{clean_id}",
-                    "name": display_name[:32] or app_stem.title(),
-                    "category": "auto",
-                    "process_matches": [proc_lower],
-                    "title_keywords": [app_stem],
-                    "yolo_classes": ["hud_element", "health_bar", "dialog_box", "error_alert"],
-                    "yolo_weights": "yolo11n.pt",
-                    "system_prompt_addon": f"Tự động tối ưu phản xạ cho '{display_name}' ({proc_lower}).",
-                    "knowledge_pack": {
-                        "context": f"Đang đồng bộ thời gian thực với {display_name}."
-                    },
-                    "reflex_rules": [
-                        {
-                            "id": f"rx_{clean_id}_alert",
-                            "trigger_type": "vision",
-                            "target_class": "player_hp_low",
-                            "min_conf": 0.48,
-                            "response": "Chú ý trạng thái trên màn hình!",
-                            "emotion": "alert",
-                            "cooldown_sec": 20,
-                        }
-                    ],
-                }
-                saved = self.save_protocol(auto_proto)
-                matched_id = saved["id"]
 
         if matched_id is None:
             matched_id = "global_default"

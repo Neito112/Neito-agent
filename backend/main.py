@@ -458,10 +458,9 @@ async def xiaozhi_websocket_endpoint(ws: WebSocket):
     await ws.send_json(mochi_core_brain.build_boot_intro_packet())
 
     async def autonomous_perception_loop():
-        last_vision_ts = 0.0
         while not stop_event.is_set():
             try:
-                await asyncio.sleep(0.8)
+                await asyncio.sleep(1.0)
                 win_now = window_watcher.get_active_window()
                 changed, current_proto = protocol_engine.match_window_to_protocol(
                     win_now.process_name, win_now.window_title
@@ -475,56 +474,12 @@ async def xiaozhi_websocket_endpoint(ws: WebSocket):
                             "protocol": current_proto,
                         }
                     )
-                    if current_proto.get("category") == "auto" and not current_proto.get("llm_enriched"):
-                        current_proto["llm_enriched"] = True
-                        asyncio.create_task(
-                            brain_router.synthesize_protocol_with_llm_and_tools(
-                                topic_or_app=current_proto["name"],
-                                process_name=win_now.process_name,
-                            )
-                        )
 
                 # Mochi Firmware `gifTask` autonomous expression cycling when idle
                 if ear.state == "IDLE":
                     cycle_pkt = mochi_core_brain.pick_next_autonomous_face()
                     if cycle_pkt:
                         await ws.send_json(cycle_pkt)
-
-                vcfg = config_manager.config.vision
-                fps_intervals = {"eco": 2.0, "balanced": 0.8, "combat": 0.25}
-                interval = fps_intervals.get(vcfg.fps_mode, 2.0)
-                now = time.time()
-
-                if vcfg.enabled and (now - last_vision_ts >= interval):
-                    last_vision_ts = now
-                    scan = eye_engine.scan_screen_yolo11n(current_proto.get("yolo_classes"))
-                    await ws.send_json(
-                        {
-                            "type": "telemetry_tick",
-                            "window": win_now.to_dict(),
-                            "protocol_id": current_proto["id"],
-                            "protocol_name": current_proto["name"],
-                            "vision_latency_ms": scan["latency_ms"],
-                            "detections": scan["detections"],
-                            "neural": scan.get("neural", {}),
-                            "resources": window_watcher.get_resource_telemetry(),
-                        }
-                    )
-
-                    if vcfg.auto_reflex_on_detection and ear.state == "IDLE":
-                        v_reflex = protocol_engine.evaluate_vision_reflex(scan["detections"])
-                        if v_reflex:
-                            await stream_tts_and_bubble(
-                                ws,
-                                ear,
-                                {
-                                    "text": v_reflex["response"],
-                                    "emotion": v_reflex["emotion"],
-                                    "mode": "vision_reflex",
-                                    "latency_ms": scan["latency_ms"],
-                                    "protocol": current_proto,
-                                },
-                            )
             except Exception:
                 if stop_event.is_set():
                     break
