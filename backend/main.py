@@ -17,6 +17,7 @@ from backend.core.config import config_manager
 from backend.core.mobile_companion_ui import MOBILE_COMPANION_HTML
 from backend.core.mochi_core_brain import mochi_core_brain
 from backend.core.protocol_engine import protocol_engine
+from backend.core.virtual_com_bridge import cdp_serial_injector, virtual_com_bridge
 from backend.core.window_watcher import window_watcher
 from backend.vision.eye_engine import eye_engine
 from backend.vision.mochi_esp32_client import ESP32_CACHE_DIR, PROJECT_ROOT
@@ -107,6 +108,8 @@ async def on_startup_init_chronos_ble():
         on_weather=_on_ble_weather,
     )
     await chronos_ble_server.start()
+    virtual_com_bridge.start(loop)
+    cdp_serial_injector.start(loop)
 
 
 async def stream_tts_and_bubble(
@@ -447,6 +450,7 @@ async def api_chronos_navigation(payload: Dict[str, Any] = Body(...)):
 async def api_get_chronos_config():
     snap = mochi_core_brain.get_status_snapshot()
     ble_st = chronos_ble_server.get_status()
+    vcom_st = virtual_com_bridge.get_status()
     return {
         "bluetoothName": mochi_core_brain.nvs.get("bluetoothName", "THE MOCHI"),
         "pc_ble_name": ble_st["pc_ble_name"],
@@ -459,7 +463,41 @@ async def api_get_chronos_config():
         "phone_connected": ble_st["phone_connected"] or mochi_core_brain.phone_connected,
         "phone_battery": mochi_core_brain.phone_battery,
         "mobile_companion_url": snap["mobile_companion_url"],
+        "virtual_com": vcom_st,
     }
+
+
+@app.get("/api/mochi/system-ports")
+async def api_get_system_ports():
+    return virtual_com_bridge.get_status()
+
+
+@app.post("/api/mochi/virtual-com/install")
+async def api_install_virtual_com():
+    res = await asyncio.to_thread(virtual_com_bridge.install_driver_elevated)
+    return res
+
+
+@app.get("/api/mochi/bridge-launch", response_class=HTMLResponse)
+async def api_mochi_bridge_launch():
+    """
+    Pre-flight launch page for Chrome 155+: registers `Page.addScriptToEvaluateOnNewDocument`
+    via CDP on the active tab BEFORE redirecting to `https://themochi.huykhong.com/thietlap/`,
+    so `navigator.serial.requestPort()` displays `THE MOCHI - Neito Agent (COM9)` immediately.
+    """
+    await cdp_serial_injector.inject_all_now()
+    html = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Đang kết nối cầu nối THE MOCHI ESP32-C3 (COM9)...</title>
+<style>body{background:#0b101c;color:#00f5d4;font-family:'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-weight:700;}</style>
+</head><body>
+<div>⚡ Đang nạp tín hiệu cầu nối THE MOCHI - Neito Agent (COM9)...</div>
+<script>
+setTimeout(function() {
+  window.location.replace("https://themochi.huykhong.com/thietlap/");
+}, 250);
+</script>
+</body></html>"""
+    return HTMLResponse(content=html)
 
 
 @app.post("/api/mochi/chronos/config")

@@ -761,40 +761,40 @@ class SoulProfileDialog(DraggableFramelessWidget):
 
 def launch_thietlap_with_webserial_bridge(fallback_url: str = "http://127.0.0.1:8765/thietlap/"):
     """
-    Launches `https://themochi.huykhong.com/thietlap/` in Chrome/Edge with the
-    `mochi_webserial_bridge` extension pre-loaded so `navigator.serial.requestPort()`
-    detects the virtual ESP32-C3 (`COM9 - THE MOCHI ESP32-C3`) directly on the official URL.
-    Falls back to `http://127.0.0.1:8765/thietlap/` if neither Chrome nor Edge is found.
+    Launches `https://themochi.huykhong.com/thietlap/` in Chrome/Edge with CDP
+    (`--remote-debugging-port=19225`) via `http://127.0.0.1:8765/api/mochi/bridge-launch`
+    so `navigator.serial.requestPort()` displays `THE MOCHI - Neito Agent (COM9)`
+    at the top of the scan list on Chrome 137..155+.
     """
     import shutil
     import subprocess
 
-    ext_dir = (_resolve_app_dir() / "assets" / "mochi_webserial_bridge").resolve()
     profile_dir = Path(os.environ.get("LOCALAPPDATA", str(_resolve_app_dir()))) / "NeitoMochiBridgeProfile"
     profile_dir.mkdir(parents=True, exist_ok=True)
 
     candidates = [
-        shutil.which("msedge"),
-        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-        shutil.which("chrome"),
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        shutil.which("chrome"),
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        shutil.which("msedge"),
     ]
     browser_exe = next((c for c in candidates if c and Path(c).exists()), None)
 
-    if browser_exe and ext_dir.exists():
+    if browser_exe:
         try:
             subprocess.Popen(
                 [
                     str(browser_exe),
                     f"--user-data-dir={profile_dir}",
-                    f"--load-extension={ext_dir}",
+                    "--remote-debugging-port=19225",
+                    "--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessRespectPreflightResults",
                     "--no-first-run",
                     "--no-default-browser-check",
-                    "https://themochi.huykhong.com/thietlap/",
+                    "http://127.0.0.1:8765/api/mochi/bridge-launch",
                 ],
-                 close_fds=True,
+                close_fds=True,
             )
             return True
         except Exception:
@@ -973,7 +973,7 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         p2_lay.setContentsMargins(0, 4, 0, 0)
         p2_lay.setSpacing(5)
 
-        self.btn_connect_web = QPushButton("⚡ MỞ THEMOCHI.HUYKHONG.COM/THIETLAP (CẦU NỐI ESP32)")
+        self.btn_connect_web = QPushButton("⚡ MỞ THEMOCHI.HUYKHONG.COM/THIETLAP (HIỆN CỔNG COM9)")
         self.btn_connect_web.setStyleSheet(
             "background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); "
             "color: #050811; font-weight: 800; font-size: 10.5px; padding: 7px; border: none; border-radius: 7px;"
@@ -981,11 +981,18 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         self.btn_connect_web.clicked.connect(self._connect_web_controller)
         p2_lay.addWidget(self.btn_connect_web)
 
+        self.btn_install_vcom = QPushButton("🔌 Cài Driver Cổng COM9 Ảo Vào Windows (Mọi Trình Duyệt)")
+        self.btn_install_vcom.setToolTip(
+            "Tạo cặp cổng nối tiếp ảo COM9 <-> COM10 cấp hệ điều hành để mọi trình duyệt tự thấy THE MOCHI - Neito Agent (COM9)"
+        )
+        self.btn_install_vcom.clicked.connect(self._install_virtual_com_driver)
+        p2_lay.addWidget(self.btn_install_vcom)
+
         self.btn_open_local_thietlap = QPushButton("🌐 Mở Bản Cầu Nối Trực Tiếp (127.0.0.1:8765/thietlap)")
         self.btn_open_local_thietlap.clicked.connect(lambda: open_native_url("http://127.0.0.1:8765/thietlap/"))
         p2_lay.addWidget(self.btn_open_local_thietlap)
 
-        self.lbl_web_status = QLabel("● Đã tạo tín hiệu cổng COM9 (ESP32-C3 USB JTAG/serial)")
+        self.lbl_web_status = QLabel("● Đã tạo tín hiệu cổng COM9 (THE MOCHI - Neito Agent)")
         self.lbl_web_status.setStyleSheet("color: #10b981; font-size: 10px; font-weight: 700;")
         p2_lay.addWidget(self.lbl_web_status)
 
@@ -995,7 +1002,7 @@ class MobileBridgeDialog(DraggableFramelessWidget):
 
         self.lbl_qr_img = QLabel()
         self.lbl_qr_img.setAlignment(Qt.AlignCenter)
-        self.lbl_qr_img.setFixedHeight(105)
+        self.lbl_qr_img.setFixedHeight(95)
         p2_lay.addWidget(self.lbl_qr_img)
 
         self.url_box = QLineEdit(self.mobile_url)
@@ -1042,6 +1049,14 @@ class MobileBridgeDialog(DraggableFramelessWidget):
                 self.url_box.setText(self.mobile_url)
                 self.lbl_pc_ble_info.setText(f"Tên BLE trên App Chronos: {pc_name} ({ble_name})")
 
+                vcom = data.get("virtual_com") or {}
+                if vcom.get("driver_installed"):
+                    bport = vcom.get("browser_port", "COM9")
+                    self.btn_install_vcom.setText(f"🟢 Cổng Ảo Windows {bport} Đã Cài & Sẵn Sàng")
+                    self.lbl_web_status.setText(f"🟢 Khi quét trên web, chọn: THE MOCHI - Neito Agent ({bport})")
+                else:
+                    self.btn_install_vcom.setText("🔌 Cài Driver Cổng COM9 Ảo Vào Windows (Mọi Trình Duyệt)")
+
                 if data.get("phone_connected"):
                     bat = data.get("phone_battery", 100)
                     self.btn_connect_phone.setText(f"🟢 ĐÃ GHÉP NỐI APP CHRONOS (Pin ĐT: {bat}%)")
@@ -1075,19 +1090,33 @@ class MobileBridgeDialog(DraggableFramelessWidget):
 
     def _connect_web_controller(self):
         launched_ext = launch_thietlap_with_webserial_bridge(self.mobile_url)
-        self.btn_connect_web.setText("🟢 ĐÃ MỞ TRANG THIẾT LẬP VỚI CẦU NỐI ESP32")
+        self.btn_connect_web.setText("🟢 ĐÃ MỞ TRANG THIẾT LẬP VỚI CẦU NỐI COM9")
         self.btn_connect_web.setStyleSheet(
             "background: rgba(16, 185, 129, 210); color: #fff; font-weight: 800; font-size: 10.5px; padding: 7px; border: 1px solid #10b981; border-radius: 7px;"
         )
         if launched_ext:
-            self.lbl_web_status.setText("🟢 Đã mở themochi.huykhong.com/thietlap kèm tín hiệu COM9!")
+            self.lbl_web_status.setText("🟢 Bấm 'Kết nối' trên web -> Chọn THE MOCHI - Neito Agent (COM9)")
         else:
             self.lbl_web_status.setText("🟢 Đã mở cầu nối trực tiếp /thietlap kèm tín hiệu COM9!")
         self.lbl_web_status.setStyleSheet("color: #00f5d4; font-size: 10px; font-weight: 700;")
-        QTimer.singleShot(3000, lambda: (
-            self.btn_connect_web.setText("⚡ MỞ THEMOCI.HUYKHONG.COM/THIETLAP (CẦU NỐI ESP32)"),
+        QTimer.singleShot(3500, lambda: (
+            self.btn_connect_web.setText("⚡ MỞ THEMOCHI.HUYKHONG.COM/THIETLAP (HIỆN CỔNG COM9)"),
             self.btn_connect_web.setStyleSheet("background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); color: #050811; font-weight: 800; font-size: 10.5px; padding: 7px; border: none; border-radius: 7px;")
         ))
+
+    def _install_virtual_com_driver(self):
+        self.btn_install_vcom.setText("⏳ Đang cài đặt cổng COM9 <-> COM10 (Chọn Yes ở UAC)...")
+        QApplication.processEvents()
+        try:
+            r = httpx.post(f"{BACKEND_HTTP}/api/mochi/virtual-com/install", timeout=65.0)
+            if r.status_code == 200 and r.json().get("driver_installed"):
+                self.btn_install_vcom.setText("🟢 Cổng Ảo Windows COM9 Đã Cài & Sẵn Sàng")
+                self.lbl_web_status.setText("🟢 Mọi trình duyệt giờ đã thấy THE MOCHI - Neito Agent (COM9)!")
+            else:
+                self.btn_install_vcom.setText("🔌 Cài Driver Cổng COM9 Ảo Vào Windows (Mọi Trình Duyệt)")
+        except Exception:
+            self.btn_install_vcom.setText("🔌 Cài Driver Cổng COM9 Ảo Vào Windows (Mọi Trình Duyệt)")
+        self.refresh_status()
 
     def _update_qr_image(self):
         try:
@@ -1101,7 +1130,7 @@ class MobileBridgeDialog(DraggableFramelessWidget):
             pil_img.save(buf, format="PNG")
             pix = QPixmap()
             pix.loadFromData(buf.getvalue())
-            self.lbl_qr_img.setPixmap(pix.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self.lbl_qr_img.setPixmap(pix.scaled(90, 90, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         except Exception:
             self.lbl_qr_img.setText("QR: " + self.mobile_url)
 

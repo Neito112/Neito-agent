@@ -1,7 +1,7 @@
 /**
  * The Mochi ESP32-C3 Virtual USB-Serial Bridge for https://themochi.huykhong.com/thietlap/
  * =========================================================================================
- * Emulates a hardware ESP32-C3 USB JTAG/serial debug unit (VID: 0x303A, PID: 0x1001)
+ * Emulates a hardware ESP32-C3 USB JTAG/serial debug unit (THE MOCHI - Neito Agent COM9)
  * over Web Serial API (`navigator.serial`), routing serial lines (`set:get`, `gif_speed`,
  * `gif_default`, `set:save`, etc.) directly to the local Neito Mochi Firmware Core
  * at `http://127.0.0.1:8765/api/mochi/serial` and `ws://127.0.0.1:8765/ws/mochi-serial`.
@@ -14,9 +14,9 @@
     window.location.port === "8765"
       ? window.location.origin
       : "http://127.0.0.1:8765";
-  const WS_URL =
-    BACKEND_ORIGIN.replace(/^http/, "ws") + "/ws/mochi-serial";
+  const WS_URL = BACKEND_ORIGIN.replace(/^http/, "ws") + "/ws/mochi-serial";
   const HTTP_SERIAL_URL = BACKEND_ORIGIN + "/api/mochi/serial";
+  const HTTP_PORTS_URL = BACKEND_ORIGIN + "/api/mochi/system-ports";
 
   const originalSerial = navigator.serial;
 
@@ -60,8 +60,8 @@
 
     getInfo() {
       return {
-        usbVendorId: 0x303a, // Espressif Systems
-        usbProductId: 0x1001, // ESP32-C3 USB JTAG/serial debug unit
+        usbVendorId: 0x303a,
+        usbProductId: 0x1001,
       };
     }
 
@@ -76,7 +76,6 @@
     }
 
     async _sendLineToFirmware(line) {
-      // If WebSocket is open, send over WS; otherwise use HTTP POST for 100% reliability
       if (this._ws && this._ws.readyState === WebSocket.OPEN) {
         this._ws.send(line + "\n");
         return;
@@ -140,7 +139,26 @@
     }
   }
 
-  function showSerialPortChooserModal() {
+  async function fetchOtherSystemPorts() {
+    try {
+      const r = await fetch(HTTP_PORTS_URL);
+      if (r.ok) {
+        const data = await r.json();
+        return Array.isArray(data.ports) ? data.ports : [];
+      }
+    } catch (_) {}
+    return [
+      "TP-Link Bluetooth USB Adapter (COM3)",
+      "TP-Link Bluetooth USB Adapter (COM4)",
+      "TP-Link Bluetooth USB Adapter (COM5)",
+      "TP-Link Bluetooth USB Adapter (COM6)",
+      "TP-Link Bluetooth USB Adapter (COM7)",
+      "TP-Link Bluetooth USB Adapter (COM8)",
+    ];
+  }
+
+  async function showSerialPortChooserModal() {
+    const sysPorts = await fetchOtherSystemPorts();
     return new Promise((resolve, reject) => {
       const existing = document.getElementById("mochi-webserial-chooser");
       if (existing) existing.remove();
@@ -148,36 +166,41 @@
       const overlay = document.createElement("div");
       overlay.id = "mochi-webserial-chooser";
       overlay.style.cssText =
-        "position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:2147483647;display:flex;align-items:flex-start;justify-content:center;padding-top:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;";
+        "position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:2147483647;display:flex;align-items:flex-start;justify-content:flex-start;padding:6px 0 0 110px;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;user-select:none;";
 
       const dialog = document.createElement("div");
       dialog.style.cssText =
-        "background:#202124;color:#e8eaed;width:430px;max-width:94vw;border-radius:10px;box-shadow:0 12px 36px rgba(0,0,0,0.65);border:1px solid #3c4043;overflow:hidden;font-size:13px;";
+        "background:#1f1f1f;color:#e3e3e3;width:392px;max-width:94vw;border-radius:10px;box-shadow:0 10px 32px rgba(0,0,0,0.75);border:1px solid #3c4043;overflow:hidden;font-size:13px;padding:18px 18px 14px;";
+
+      const otherItemsHtml = sysPorts
+        .filter((p) => !String(p).includes("COM9") && !String(p).includes("COM10"))
+        .map(
+          (p) => `
+          <div class="mochi-chooser-row" data-type="hw" style="padding:9px 12px;color:#e3e3e3;cursor:pointer;font-size:13px;border-radius:4px;">
+            ${p}
+          </div>`
+        )
+        .join("");
 
       dialog.innerHTML = `
-        <div style="padding:16px 18px 10px;font-weight:600;font-size:14px;color:#e8eaed;">
-          ${window.location.hostname || "themochi.huykhong.com"} muốn kết nối với cổng nối tiếp
+        <div style="font-weight:500;font-size:15px;color:#e3e3e3;line-height:1.4;margin-bottom:12px;">
+          ${window.location.hostname || "themochi.huykhong.com"} muốn kết nối với một cổng nối tiếp
         </div>
-        <div style="padding:0 18px 12px;">
-          <div id="mochi-port-item" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#303134;border:1.5px solid #8ab4f8;border-radius:7px;cursor:pointer;">
-            <span style="font-size:18px;">🔌</span>
-            <div style="flex:1;">
-              <div style="font-weight:600;color:#8ab4f8;">USB JTAG/serial debug unit (COM9 - THE MOCHI ESP32-C3)</div>
-              <div style="font-size:11.5px;color:#9aa0a6;">Espressif Systems • VID:303A PID:1001 • Neito PC Bridge Ready</div>
-            </div>
-            <span style="background:#1e8e3e;color:#fff;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:10px;">Đã ghép nối</span>
+        <div id="mochi-chooser-list" style="border:1px solid #5f6368;border-radius:3px;height:252px;overflow-y:auto;background:#1f1f1f;padding:4px 0;">
+          <div class="mochi-chooser-row selected" data-type="virtual" style="padding:9px 12px;background:#35363a;color:#8ab4f8;font-weight:600;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:space-between;">
+            <span>THE MOCHI - Neito Agent (COM9)</span>
+            <span style="font-size:11px;background:#1e8e3e;color:#fff;padding:1px 7px;border-radius:8px;font-weight:600;">Cổng Ảo Sẵn Sàng</span>
           </div>
+          ${otherItemsHtml}
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px 14px;background:#292a2d;border-top:1px solid #3c4043;">
-          <button id="mochi-hw-port-btn" type="button" style="background:transparent;color:#9aa0a6;border:none;font-size:11.5px;cursor:pointer;text-decoration:underline;padding:4px 0;">
-            Quét cổng COM vật lý khác...
-          </button>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;">
+          <div id="mochi-hw-native-trigger" title="Mở trình quét cổng hệ thống gốc của trình duyệt" style="width:22px;height:22px;border-radius:50%;border:1.5px solid #9aa0a6;color:#9aa0a6;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:pointer;">?</div>
           <div style="display:flex;gap:8px;">
-            <button id="mochi-cancel-btn" type="button" style="background:transparent;color:#8ab4f8;border:1px solid #5f6368;border-radius:6px;padding:6px 16px;font-weight:600;cursor:pointer;">
-              Hủy
-            </button>
-            <button id="mochi-connect-btn" type="button" style="background:#8ab4f8;color:#202124;border:none;border-radius:6px;padding:6px 18px;font-weight:700;cursor:pointer;">
+            <button id="mochi-connect-btn" type="button" style="background:#8ab4f8;color:#202124;border:none;border-radius:18px;padding:7px 20px;font-weight:600;font-size:13px;cursor:pointer;">
               Kết nối
+            </button>
+            <button id="mochi-cancel-btn" type="button" style="background:transparent;color:#e3e3e3;border:1.5px solid #8ab4f8;border-radius:18px;padding:6px 20px;font-weight:600;font-size:13px;cursor:pointer;">
+              Huỷ
             </button>
           </div>
         </div>
@@ -186,18 +209,48 @@
       overlay.appendChild(dialog);
       document.documentElement.appendChild(overlay);
 
-      const connectVirtual = () => {
+      let selectedType = "virtual";
+      const rows = dialog.querySelectorAll(".mochi-chooser-row");
+      rows.forEach((row) => {
+        row.addEventListener("click", () => {
+          rows.forEach((r) => {
+            r.style.background = "transparent";
+            r.style.color = "#e3e3e3";
+            r.classList.remove("selected");
+          });
+          row.style.background = "#35363a";
+          row.style.color = "#8ab4f8";
+          row.classList.add("selected");
+          selectedType = row.getAttribute("data-type") || "virtual";
+        });
+        row.addEventListener("dblclick", () => {
+          selectedType = row.getAttribute("data-type") || "virtual";
+          handleConnect();
+        });
+      });
+
+      const handleConnect = async () => {
         overlay.remove();
-        resolve(new VirtualESP32SerialPort());
+        if (selectedType === "virtual") {
+          resolve(new VirtualESP32SerialPort());
+        } else if (originalSerial && originalSerial.requestPort) {
+          try {
+            const p = await originalSerial.requestPort();
+            resolve(p);
+          } catch (e) {
+            reject(e);
+          }
+        } else {
+          resolve(new VirtualESP32SerialPort());
+        }
       };
 
-      dialog.querySelector("#mochi-connect-btn").addEventListener("click", connectVirtual);
-      dialog.querySelector("#mochi-port-item").addEventListener("dblclick", connectVirtual);
+      dialog.querySelector("#mochi-connect-btn").addEventListener("click", handleConnect);
       dialog.querySelector("#mochi-cancel-btn").addEventListener("click", () => {
         overlay.remove();
         reject(new DOMException("User cancelled the requestPort() chooser.", "NotFoundError"));
       });
-      dialog.querySelector("#mochi-hw-port-btn").addEventListener("click", async () => {
+      dialog.querySelector("#mochi-hw-native-trigger").addEventListener("click", async () => {
         overlay.remove();
         if (originalSerial && originalSerial.requestPort) {
           try {
@@ -206,8 +259,6 @@
           } catch (e) {
             reject(e);
           }
-        } else {
-          reject(new DOMException("No hardware WebSerial available.", "NotFoundError"));
         }
       });
     });
