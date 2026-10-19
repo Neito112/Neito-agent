@@ -51,6 +51,8 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QStackedWidget,
     QProgressBar,
+    QFileDialog,
+    QCheckBox,
 )
 import numpy as np
 from backend.vision.mochi_esp32_client import MochiFacePlayer
@@ -838,6 +840,391 @@ def launch_esp32_web_bridge(target_url: str = "https://themochi.huykhong.com/thi
 launch_thietlap_with_webserial_bridge = launch_esp32_web_bridge
 
 
+class FirmwareFlasherDialog(DraggableFramelessWidget):
+    """
+    ESP32 Hardware Emulator Firmware Flasher Dialog.
+    Allows 1-click flashing of official firmwares (Xiaozhi Vietnam, Xiaozhi Me, The Mochi)
+    or custom .bin files directly into the virtual ESP32 hardware emulator.
+    """
+
+    firmware_flashed = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedWidth(360)
+        self.presets: List[Dict[str, Any]] = []
+        self._poll_timer = QTimer(self)
+        self._poll_timer.setInterval(320)
+        self._poll_timer.timeout.connect(self._poll_status)
+
+        frame = QFrame(self)
+        frame.setObjectName("flasherFrame")
+        frame.setStyleSheet(
+            """
+            QFrame#flasherFrame {
+                background-color: rgba(11, 16, 28, 252);
+                border: 1.5px solid #a855f7;
+                border-radius: 14px;
+            }
+            QLabel {
+                color: #e0f2fe;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QLineEdit, QComboBox {
+                background-color: rgba(20, 29, 49, 240);
+                border: 1px solid rgba(168, 85, 247, 130);
+                border-radius: 6px;
+                color: #f1f5f9;
+                padding: 4px 6px;
+                font-size: 11px;
+                font-weight: 700;
+            }
+            QComboBox:focus, QLineEdit:focus {
+                border-color: #00f5d4;
+            }
+            QPushButton {
+                background-color: rgba(25, 38, 64, 230);
+                color: #f1f5f9;
+                border: 1px solid rgba(168, 85, 247, 90);
+                border-radius: 6px;
+                padding: 5px 8px;
+                font-size: 11px;
+                font-weight: 700;
+            }
+            QPushButton:hover {
+                background-color: rgba(168, 85, 247, 70);
+            }
+            QProgressBar {
+                background-color: rgba(15, 23, 42, 220);
+                border: 1px solid rgba(168, 85, 247, 0.4);
+                border-radius: 4px;
+                text-align: center;
+                color: #f8fafc;
+                font-size: 10px;
+                font-weight: 700;
+            }
+            QProgressBar::chunk {
+                background: linear-gradient(90deg, #a855f7 0%, #00f5d4 100%);
+                border-radius: 4px;
+            }
+            QTextEdit {
+                background-color: rgba(5, 8, 16, 240);
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                border-radius: 6px;
+                color: #38bdf8;
+                font-family: Consolas, monospace;
+                font-size: 9.5px;
+            }
+            """
+        )
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addWidget(frame)
+
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(11, 9, 11, 11)
+        lay.setSpacing(6)
+
+        # Header
+        hdr = QHBoxLayout()
+        lbl_title = QLabel("⚡ Nạp Firmware Cho ESP32 (1-Click Trong App)")
+        lbl_title.setCursor(Qt.SizeAllCursor)
+        lbl_title.setStyleSheet("font-size: 11.5px; font-weight: 800; color: #c084fc;")
+        btn_close = QPushButton("✕")
+        btn_close.setFixedSize(20, 20)
+        btn_close.setStyleSheet("padding: 0; font-size: 11px; border: none; color: #94a3b8;")
+        btn_close.clicked.connect(self.hide)
+        hdr.addWidget(lbl_title)
+        hdr.addStretch()
+        hdr.addWidget(btn_close)
+        lay.addLayout(hdr)
+
+        lbl_sub = QLabel("Nạp trực tiếp vào ESP32 ảo không cần mở Chrome hay COM driver:")
+        lbl_sub.setStyleSheet("color: #94a3b8; font-size: 9.5px; font-weight: 600;")
+        lay.addWidget(lbl_sub)
+
+        # Preset selection
+        lbl_sel = QLabel("Chọn Bản Firmware:")
+        lbl_sel.setStyleSheet("color: #e0f2fe; font-size: 10px; font-weight: 700;")
+        lay.addWidget(lbl_sel)
+        self.combo_presets = QComboBox()
+        self.combo_presets.currentIndexChanged.connect(self._on_preset_changed)
+        lay.addWidget(self.combo_presets)
+
+        # Custom File Row (hidden by default)
+        self.file_row_widget = QWidget()
+        f_lay = QHBoxLayout(self.file_row_widget)
+        f_lay.setContentsMargins(0, 0, 0, 0)
+        f_lay.setSpacing(4)
+        self.input_file = QLineEdit()
+        self.input_file.setPlaceholderText("Chọn file .bin trên máy...")
+        self.btn_browse = QPushButton("📁 Chọn File")
+        self.btn_browse.clicked.connect(self._browse_file)
+        f_lay.addWidget(self.input_file, 1)
+        f_lay.addWidget(self.btn_browse)
+        self.file_row_widget.hide()
+        lay.addWidget(self.file_row_widget)
+
+        # Custom URL Row (hidden by default)
+        self.url_row_widget = QWidget()
+        u_lay = QHBoxLayout(self.url_row_widget)
+        u_lay.setContentsMargins(0, 0, 0, 0)
+        u_lay.setSpacing(4)
+        self.input_url = QLineEdit()
+        self.input_url.setPlaceholderText("https://.../firmware.bin")
+        u_lay.addWidget(self.input_url)
+        self.url_row_widget.hide()
+        lay.addWidget(self.url_row_widget)
+
+        # Info Card
+        self.info_card = QFrame()
+        self.info_card.setStyleSheet(
+            "background: rgba(15, 23, 42, 220); border: 1px solid rgba(192, 132, 252, 0.4); border-radius: 8px; padding: 6px;"
+        )
+        ic_lay = QVBoxLayout(self.info_card)
+        ic_lay.setContentsMargins(4, 4, 4, 4)
+        ic_lay.setSpacing(2)
+
+        self.lbl_info_chip = QLabel("Chip: ESP32-S3 | Flash: 8MB | PSRAM: 2MB")
+        self.lbl_info_chip.setStyleSheet("color: #00f5d4; font-size: 10px; font-weight: 700;")
+        self.lbl_info_disp = QLabel("Màn hình: OLED SSD1306 (0.96 inch)")
+        self.lbl_info_disp.setStyleSheet("color: #cbd5e1; font-size: 9.5px; font-weight: 600;")
+        self.lbl_info_author = QLabel("Nguồn: XIAOZHI VIỆT NAM (xiaozhi.vn)")
+        self.lbl_info_author.setStyleSheet("color: #c084fc; font-size: 9.3px; font-weight: 700;")
+        self.lbl_info_desc = QLabel("Bản ROM chính thức từ xiaozhi.vn")
+        self.lbl_info_desc.setWordWrap(True)
+        self.lbl_info_desc.setStyleSheet("color: #94a3b8; font-size: 9px; line-height: 120%;")
+
+        ic_lay.addWidget(self.lbl_info_chip)
+        ic_lay.addWidget(self.lbl_info_disp)
+        ic_lay.addWidget(self.lbl_info_author)
+        ic_lay.addWidget(self.lbl_info_desc)
+        lay.addWidget(self.info_card)
+
+        # Auto-sync Checkbox
+        self.chk_auto_sync = QCheckBox("Tự động đồng bộ phần cứng ảo (Chip, Màn hình, Flash)")
+        self.chk_auto_sync.setChecked(True)
+        self.chk_auto_sync.setStyleSheet("color: #cbd5e1; font-size: 9.5px; font-weight: 600;")
+        lay.addWidget(self.chk_auto_sync)
+
+        # Action Button
+        self.btn_flash = QPushButton("⚡ BẮT ĐẦU NẠP FIRMWARE (1-CLICK)")
+        self.btn_flash.setStyleSheet(
+            "background: linear-gradient(135deg, #a855f7 0%, #00f5d4 100%); "
+            "color: #050811; font-weight: 800; font-size: 11.5px; padding: 7px; border: none; border-radius: 7px;"
+        )
+        self.btn_flash.clicked.connect(self._start_flashing)
+        lay.addWidget(self.btn_flash)
+
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setFixedHeight(12)
+        self.progress_bar.setValue(0)
+        lay.addWidget(self.progress_bar)
+
+        # Status label
+        self.lbl_status = QLabel("Sẵn sàng nạp firmware.")
+        self.lbl_status.setAlignment(Qt.AlignCenter)
+        self.lbl_status.setStyleSheet("color: #94a3b8; font-size: 10px; font-weight: 700;")
+        lay.addWidget(self.lbl_status)
+
+        # Log terminal viewer
+        self.log_viewer = QTextEdit()
+        self.log_viewer.setReadOnly(True)
+        self.log_viewer.setFixedHeight(85)
+        self.log_viewer.setPlaceholderText("Nhật ký nạp firmware ESP32...")
+        lay.addWidget(self.log_viewer)
+
+        # Load presets on startup
+        self._load_presets()
+
+    def _load_presets(self):
+        try:
+            r = httpx.get(f"{BACKEND_HTTP}/api/firmware/presets", timeout=2.0)
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, dict) and "presets" in data:
+                    self.presets = data["presets"]
+                elif isinstance(data, list):
+                    self.presets = data
+        except Exception:
+            pass
+
+        if not self.presets:
+            self.presets = [
+                {
+                    "id": "xiaozhi_s3_oled_096",
+                    "name": "Xiaozhi AI - ESP32-S3 Tím (OLED 0.96 inch SSD1306)",
+                    "chip_model": "ESP32-S3-N8R2",
+                    "flash_size": "8MB",
+                    "psram_size": "2MB Quad",
+                    "display_type": "OLED SSD1306 (0.96 inch)",
+                    "author": "XIAOZHI VIỆT NAM (xiaozhi.vn)",
+                    "description": "Bản ROM chính thức từ xiaozhi.vn cho mạch ESP32-S3 tím.",
+                },
+                {
+                    "id": "xiaozhi_s3_oled_130",
+                    "name": "Xiaozhi AI - ESP32-S3 Tím (OLED 1.3 inch SH1106)",
+                    "chip_model": "ESP32-S3-N8R2",
+                    "flash_size": "8MB",
+                    "psram_size": "2MB Quad",
+                    "display_type": "OLED SH1106 (1.3 inch)",
+                    "author": "XIAOZHI VIỆT NAM (xiaozhi.vn)",
+                    "description": "Bản ROM Xiaozhi cho màn hình OLED 1.3 inch.",
+                },
+                {
+                    "id": "xiaozhi_s3_tft_128r",
+                    "name": "Xiaozhi AI - ESP32-S3 Tím (TFT Tròn 1.28 inch GC9A01)",
+                    "chip_model": "ESP32-S3",
+                    "flash_size": "16MB",
+                    "psram_size": "8MB Octal",
+                    "display_type": "TFT 1.28\" Round",
+                    "author": "XIAOZHI VIỆT NAM (xiaozhi.vn)",
+                    "description": "Bản ROM Xiaozhi mặt đồng hồ tròn 240x240.",
+                },
+                {
+                    "id": "xiaozhi_s3_box3",
+                    "name": "Xiaozhi AI - ESP32-S3-N16R8 Box 3 (TFT 2.4\" ST7789)",
+                    "chip_model": "ESP32-S3-N16R8",
+                    "flash_size": "16MB",
+                    "psram_size": "8MB Octal",
+                    "display_type": "TFT ST7789 240x240",
+                    "author": "Xiaozhi Console (xiaozhi.me)",
+                    "description": "Bản ROM Box 3 với 16MB Flash, 8MB PSRAM và MCP camera màn hình.",
+                },
+                {
+                    "id": "mochi_c3_v432",
+                    "name": "The Mochi Gốc ESP32-C3 v4.3.2 (71 Biểu Cảm + 27 WAV)",
+                    "chip_model": "ESP32-C3",
+                    "flash_size": "4MB",
+                    "psram_size": "0MB (Không có)",
+                    "display_type": "OLED SSD1306 (0.96 inch)",
+                    "author": "The Mochi (themochi.huykhong.com)",
+                    "description": "Firmware gốc từ themochi.huykhong.com với 71 biểu cảm OLED.",
+                },
+            ]
+
+        self.combo_presets.blockSignals(True)
+        self.combo_presets.clear()
+        for p in self.presets:
+            self.combo_presets.addItem(f"⚡ {p['name']}", p["id"])
+        self.combo_presets.addItem("📁 Chọn file .bin từ máy tính...", "custom_file")
+        self.combo_presets.addItem("🌐 Nhập link URL firmware trực tiếp...", "custom_url")
+        self.combo_presets.blockSignals(False)
+
+        self._on_preset_changed(0)
+
+    def _on_preset_changed(self, idx: int):
+        target_id = self.combo_presets.currentData()
+        if target_id == "custom_file":
+            self.file_row_widget.show()
+            self.url_row_widget.hide()
+            self.lbl_info_chip.setText("Chip: Tự động trích xuất từ header ROM")
+            self.lbl_info_disp.setText("Màn hình: Theo cấu hình file .bin")
+            self.lbl_info_author.setText("Nguồn: File cục bộ trên PC")
+            self.lbl_info_desc.setText("Chọn file .bin firmware đã build hoặc tải về từ trang web.")
+        elif target_id == "custom_url":
+            self.file_row_widget.hide()
+            self.url_row_widget.show()
+            self.lbl_info_chip.setText("Chip: Tự động nhận diện")
+            self.lbl_info_disp.setText("Màn hình: Tùy biến")
+            self.lbl_info_author.setText("Nguồn: URL trực tiếp")
+            self.lbl_info_desc.setText("Nhập đường dẫn http(s) tới file .bin để tải và nạp tự động.")
+        else:
+            self.file_row_widget.hide()
+            self.url_row_widget.hide()
+            p = next((item for item in self.presets if item["id"] == target_id), None)
+            if p:
+                self.lbl_info_chip.setText(f"Chip: {p.get('chip_model', 'ESP32-S3')} | Flash: {p.get('flash_size', '16MB')} | PSRAM: {p.get('psram_size', '8MB')}")
+                self.lbl_info_disp.setText(f"Màn hình: {p.get('display_type', 'OLED SSD1306')}")
+                self.lbl_info_author.setText(f"Nguồn: {p.get('author', 'Official')}")
+                self.lbl_info_desc.setText(p.get("description", ""))
+
+    def _browse_file(self):
+        fpath, _ = QFileDialog.getOpenFileName(
+            self,
+            "Chọn File Firmware ESP32 (.bin)",
+            "",
+            "ESP32 Firmware (*.bin);;All Files (*.*)",
+        )
+        if fpath:
+            self.input_file.setText(fpath)
+
+    def _start_flashing(self):
+        target_id = self.combo_presets.currentData()
+        payload: Dict[str, Any] = {}
+        if target_id == "custom_file":
+            fpath = self.input_file.text().strip()
+            if not fpath or not Path(fpath).exists():
+                self.lbl_status.setText("⚠️ Hãy chọn file .bin hợp lệ!")
+                return
+            payload["file_path"] = fpath
+        elif target_id == "custom_url":
+            url = self.input_url.text().strip()
+            if not url or not url.startswith("http"):
+                self.lbl_status.setText("⚠️ Hãy nhập URL http(s) hợp lệ!")
+                return
+            payload["custom_url"] = url
+        else:
+            payload["preset_id"] = target_id
+
+        self.btn_flash.setEnabled(False)
+        self.btn_flash.setText("⏳ ĐANG NẠP FIRMWARE...")
+        self.progress_bar.setValue(5)
+        self.lbl_status.setText("Đang khởi tạo tiến trình nạp...")
+        self.lbl_status.setStyleSheet("color: #38bdf8; font-size: 10px; font-weight: 700;")
+        self.log_viewer.clear()
+
+        try:
+            r = httpx.post(f"{BACKEND_HTTP}/api/firmware/flash", json=payload, timeout=5.0)
+            if r.status_code == 200:
+                self._poll_timer.start()
+            else:
+                self.btn_flash.setEnabled(True)
+                self.btn_flash.setText("⚡ BẮT ĐẦU NẠP FIRMWARE (1-CLICK)")
+                self.lbl_status.setText(f"❌ Không thể bắt đầu: {r.text}")
+        except Exception as e:
+            self.btn_flash.setEnabled(True)
+            self.btn_flash.setText("⚡ BẮT ĐẦU NẠP FIRMWARE (1-CLICK)")
+            self.lbl_status.setText(f"❌ Lỗi kết nối backend: {e}")
+
+    def _poll_status(self):
+        try:
+            r = httpx.get(f"{BACKEND_HTTP}/api/firmware/status", timeout=2.0)
+            if r.status_code == 200:
+                data = r.json()
+                state = data.get("state", "idle")
+                pct = int(data.get("progress_pct", 0))
+                msg = data.get("status_message", "")
+                logs = data.get("log_lines", [])
+
+                self.progress_bar.setValue(pct)
+                self.lbl_status.setText(msg)
+                if logs:
+                    self.log_viewer.setPlainText("\n".join(logs))
+                    sb = self.log_viewer.verticalScrollBar()
+                    if sb:
+                        sb.setValue(sb.maximum())
+
+                if state == "complete":
+                    self._poll_timer.stop()
+                    self.btn_flash.setEnabled(True)
+                    self.btn_flash.setText("⚡ BẮT ĐẦU NẠP FIRMWARE (1-CLICK)")
+                    self.lbl_status.setText("✅ Nạp Firmware Thành Công! ESP32 Đã Khởi Động Lại.")
+                    self.lbl_status.setStyleSheet("color: #00f5d4; font-weight: 800; font-size: 10.5px;")
+                    self.firmware_flashed.emit(self.combo_presets.currentText())
+                elif state == "error":
+                    self._poll_timer.stop()
+                    self.btn_flash.setEnabled(True)
+                    self.btn_flash.setText("⚡ BẮT ĐẦU NẠP FIRMWARE (1-CLICK)")
+                    self.lbl_status.setText(f"❌ {msg}")
+                    self.lbl_status.setStyleSheet("color: #ef4444; font-weight: 800; font-size: 10.5px;")
+        except Exception:
+            pass
+
+
 class MobileBridgeDialog(DraggableFramelessWidget):
     """
     ESP32-S3 Ultimate Hardware Emulator Control Center:
@@ -851,6 +1238,7 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         self.setFixedWidth(345)
         self.mobile_url = f"{BACKEND_HTTP}/thietlap/"
         self.activation_code = ""
+        self.flasher_dialog: Optional[FirmwareFlasherDialog] = None
 
         frame = QFrame(self)
         frame.setObjectName("mobileFrame")
@@ -1035,6 +1423,13 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         self.btn_save_hw.clicked.connect(self._save_hardware_specs)
         hw_box_lay.addWidget(self.btn_save_hw)
 
+        self.btn_open_flasher_tab0 = QPushButton("⚡ NẠP ROM / FIRMWARE CHO ESP32 (1-CLICK)")
+        self.btn_open_flasher_tab0.setStyleSheet(
+            "background: linear-gradient(135deg, #a855f7 0%, #00f5d4 100%); color: #050811; font-weight: 800; font-size: 10.5px; padding: 6px; border: none; border-radius: 6px;"
+        )
+        self.btn_open_flasher_tab0.clicked.connect(self._open_firmware_flasher)
+        hw_box_lay.addWidget(self.btn_open_flasher_tab0)
+
         p0_lay.addWidget(hw_box)
 
         code_box = QFrame()
@@ -1202,6 +1597,15 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         p2_lay.addWidget(usb_card)
 
         # Main Flasher / Setup Buttons
+        self.btn_open_flasher_tab2 = QPushButton("⚡ NẠP FIRMWARE TRỰC TIẾP TRONG APP (1-CLICK)")
+        self.btn_open_flasher_tab2.setToolTip("Nạp trực tiếp firmware xiaozhi.vn, mochi hoặc file .bin không cần mở trình duyệt")
+        self.btn_open_flasher_tab2.setStyleSheet(
+            "background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 50%, #06b6d4 100%); "
+            "color: #ffffff; font-weight: 900; font-size: 11px; padding: 8px; border: none; border-radius: 7px;"
+        )
+        self.btn_open_flasher_tab2.clicked.connect(self._open_firmware_flasher)
+        p2_lay.addWidget(self.btn_open_flasher_tab2)
+
         self.btn_open_flasher_xiaozhi = QPushButton("🤖 MỞ WEB NẠP XIAOZHI.VN (HIỆN CỔNG COM9)")
         self.btn_open_flasher_xiaozhi.setStyleSheet(
             "background: linear-gradient(135deg, #a855f7 0%, #06b6d4 100%); "
@@ -1528,6 +1932,24 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         self.btn_copy_ext.setText("✓ Đã Copy Path!")
         QTimer.singleShot(1800, lambda: self.btn_copy_ext.setText("🧩 Copy Path Extension"))
 
+    def set_flasher_dialog(self, flasher_dialog: FirmwareFlasherDialog):
+        self.flasher_dialog = flasher_dialog
+        self.flasher_dialog.firmware_flashed.connect(lambda _: self.refresh_status())
+
+    def _open_firmware_flasher(self):
+        if self.flasher_dialog is None:
+            self.flasher_dialog = FirmwareFlasherDialog()
+            self.flasher_dialog.firmware_flashed.connect(lambda _: self.refresh_status())
+        self.flasher_dialog._load_presets()
+        if not getattr(self.flasher_dialog, "_user_moved", False):
+            geo = self.geometry()
+            fx = max(10, geo.left() - self.flasher_dialog.width() - 8)
+            fy = max(10, geo.top())
+            self.flasher_dialog.move(fx, fy)
+        self.flasher_dialog.show()
+        self.flasher_dialog.raise_()
+        self.flasher_dialog.activateWindow()
+
 
 class MinimalSettingsPopover(DraggableFramelessWidget):
     """
@@ -1542,6 +1964,9 @@ class MinimalSettingsPopover(DraggableFramelessWidget):
 
         self.soul_dialog = SoulProfileDialog()
         self.mobile_dialog = MobileBridgeDialog()
+        self.flasher_dialog = FirmwareFlasherDialog()
+        self.mobile_dialog.set_flasher_dialog(self.flasher_dialog)
+        self.flasher_dialog.firmware_flashed.connect(lambda _: self.mobile_dialog.refresh_status())
         self._provider_saved_models: Dict[str, str] = {}
 
         container = QFrame(self)
@@ -1720,6 +2145,17 @@ class MinimalSettingsPopover(DraggableFramelessWidget):
         toggles_row.addWidget(self.btn_mobile)
         layout.addLayout(toggles_row)
 
+        # 5.5 Fast Firmware Flasher Button (1-Click Inside App)
+        self.btn_flasher = QPushButton("⚡ Nạp Firmware ESP32 (1-Click)")
+        self.btn_flasher.setStyleSheet(
+            "QPushButton { background: linear-gradient(135deg, rgba(168, 85, 247, 0.35) 0%, rgba(6, 182, 212, 0.35) 100%); "
+            "color: #38bdf8; border: 1px solid #38bdf8; border-radius: 8px; padding: 6px 8px; font-weight: 800; font-size: 11.5px; } "
+            "QPushButton:hover { background: linear-gradient(135deg, rgba(168, 85, 247, 0.7) 0%, rgba(6, 182, 212, 0.7) 100%); color: #ffffff; }"
+        )
+        self.btn_flasher.setToolTip("Nạp trực tiếp firmware xiaozhi.vn, mochi hoặc custom .bin vào chip ESP32 ảo")
+        self.btn_flasher.clicked.connect(self._open_flasher_dialog)
+        layout.addWidget(self.btn_flasher)
+
         # 6. Action Row: [🛑 Thoát] + [Lưu]
         action_row = QHBoxLayout()
         action_row.setSpacing(6)
@@ -1829,6 +2265,8 @@ class MinimalSettingsPopover(DraggableFramelessWidget):
 
     def _open_soul_dialog(self):
         self.mobile_dialog.hide()
+        if hasattr(self, "flasher_dialog"):
+            self.flasher_dialog.hide()
         self.soul_dialog.load_soul()
         if not getattr(self.soul_dialog, "_user_moved", False):
             geo = self.geometry()
@@ -1839,6 +2277,8 @@ class MinimalSettingsPopover(DraggableFramelessWidget):
 
     def _open_mobile_dialog(self):
         self.soul_dialog.hide()
+        if hasattr(self, "flasher_dialog"):
+            self.flasher_dialog.hide()
         self.mobile_dialog.refresh_status()
         if not getattr(self.mobile_dialog, "_user_moved", False):
             geo = self.geometry()
@@ -1846,6 +2286,19 @@ class MinimalSettingsPopover(DraggableFramelessWidget):
             my = max(10, geo.top())
             self.mobile_dialog.move(mx, my)
         self.mobile_dialog.show()
+
+    def _open_flasher_dialog(self):
+        self.soul_dialog.hide()
+        self.mobile_dialog.hide()
+        self.flasher_dialog._load_presets()
+        if not getattr(self.flasher_dialog, "_user_moved", False):
+            geo = self.geometry()
+            fx = max(10, geo.left() - self.flasher_dialog.width() - 8)
+            fy = max(10, geo.top())
+            self.flasher_dialog.move(fx, fy)
+        self.flasher_dialog.show()
+        self.flasher_dialog.raise_()
+        self.flasher_dialog.activateWindow()
 
     def load_from_backend(self):
         try:
@@ -2084,6 +2537,8 @@ class NeitoDesktopOverlay(QWidget):
 
         self.settings_popover = MinimalSettingsPopover()
         self.settings_popover.settings_saved.connect(self._on_settings_saved)
+        if hasattr(self.settings_popover, "flasher_dialog"):
+            self.settings_popover.flasher_dialog.firmware_flashed.connect(self._on_firmware_flashed)
 
         self._build_ui()
         self._position_bottom_right()
@@ -2328,10 +2783,18 @@ class NeitoDesktopOverlay(QWidget):
             self.settings_popover.hide()
             self.settings_popover.soul_dialog.hide()
             self.settings_popover.mobile_dialog.hide()
+            if hasattr(self.settings_popover, "flasher_dialog"):
+                self.settings_popover.flasher_dialog.hide()
         else:
             self.settings_popover.load_from_backend()
             self._reposition_settings_popover()
             self.settings_popover.show()
+
+    def _on_firmware_flashed(self, rom_title: str):
+        clean_name = rom_title.replace("⚡", "").strip()
+        self._show_speech_bubble(f"Đã nạp xong firmware '{clean_name}' thành công! ESP32 ảo đã khởi động lại 🎉")
+        if hasattr(self, "mascot") and hasattr(self.mascot, "mochi_player"):
+            self.mascot.mochi_player.set_face("happy_2")
 
     def _reposition_settings_popover(self):
         if not getattr(self.settings_popover, "_user_moved", False):

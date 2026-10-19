@@ -16,6 +16,7 @@ from backend.core.chronos_ble_server import chronos_ble_server
 from backend.core.config import config_manager
 from backend.core.esp32_bootloader_emulator import ESP32UnifiedSerialRouter
 from backend.core.esp32_hardware_emulator import esp32_emulator
+from backend.core.firmware_flasher import firmware_flasher
 from backend.core.mobile_companion_ui import MOBILE_COMPANION_HTML
 from backend.core.mochi_core_brain import mochi_core_brain
 from backend.core.protocol_engine import protocol_engine
@@ -656,6 +657,36 @@ async def api_update_esp32_hardware(payload: Dict[str, Any] = Body(...)):
         "hardware": res,
         "manifest": esp32_emulator.get_hardware_manifest(),
     }
+
+
+# ============================================================================
+# ESP32 FIRMWARE FLASHER (XIAOZHI & MOCHI 1-CLICK FLASHING)
+# ============================================================================
+
+@app.get("/api/firmware/presets")
+async def api_get_firmware_presets():
+    """Returns the list of curated official ESP32 firmwares (xiaozhi.vn, themochi, xiaozhi.me)."""
+    return {"ok": True, "presets": firmware_flasher.get_presets()}
+
+
+@app.get("/api/firmware/status")
+async def api_get_firmware_status():
+    """Returns the current flashing status, percentage, and log messages."""
+    return firmware_flasher.get_status()
+
+
+@app.post("/api/firmware/flash")
+async def api_flash_firmware(payload: Dict[str, Any] = Body(...)):
+    """Triggers the firmware flashing worker for a preset ID, custom URL, or file path."""
+    preset_id = payload.get("preset_id")
+    custom_url = payload.get("custom_url")
+    file_path = payload.get("file_path")
+    res = firmware_flasher.flash_firmware_async(
+        preset_id=preset_id,
+        custom_url=custom_url,
+        file_path=file_path,
+    )
+    return res
 
 
 @app.post("/api/esp32/xiaozhi-ota")
