@@ -647,6 +647,17 @@ async def api_get_esp32_hardware():
     }
 
 
+@app.post("/api/esp32/hardware")
+async def api_update_esp32_hardware(payload: Dict[str, Any] = Body(...)):
+    """Updates the ESP32 hardware specifications (chip_model, flash_size, psram_size, display_type, camera_module, mac_address)."""
+    res = esp32_emulator.update_hardware_config(payload)
+    return {
+        "ok": True,
+        "hardware": res,
+        "manifest": esp32_emulator.get_hardware_manifest(),
+    }
+
+
 @app.post("/api/esp32/xiaozhi-ota")
 async def api_esp32_xiaozhi_ota(payload: Dict[str, Any] = Body(default={})):
     """

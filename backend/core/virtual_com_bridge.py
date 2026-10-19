@@ -241,7 +241,14 @@ class CDPWebSerialInjector:
         root = _get_project_root()
         js_path = root / "assets" / "mochi_webserial_bridge" / "mochi_serial_bridge.js"
         if js_path.exists():
-            return js_path.read_text(encoding="utf-8")
+            content = js_path.read_text(encoding="utf-8")
+            try:
+                from backend.core.config import config_manager
+                hw = config_manager.config.esp32_hardware
+                cfg_js = f"window.__NEITO_ESP32_CONFIG__ = {hw.model_dump_json()};\n"
+                return cfg_js + content
+            except Exception:
+                return content
         return ""
 
     def start(self, loop: asyncio.AbstractEventLoop):
@@ -312,7 +319,7 @@ class CDPWebSerialInjector:
                 await self.inject_all_now()
             except Exception:
                 pass
-            await asyncio.sleep(0.6)
+            await asyncio.sleep(2.0)
 
 
 virtual_com_bridge = VirtualCOMPortBridge()

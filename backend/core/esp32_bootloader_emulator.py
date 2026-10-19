@@ -105,9 +105,17 @@ class ESP32BootloaderEmulator:
     Emulates an ESP32-S3 (or ESP32-C3) with full flash write and verify.
     """
 
-    def __init__(self, mac_address: str = "EC:DA:3B:A1:7E:52", chip_type: str = "ESP32-S3"):
+    def __init__(
+        self,
+        mac_address: str = "EC:DA:3B:A1:7E:52",
+        chip_type: str = "ESP32-S3",
+        flash_size_mb: int = 16,
+        psram_size_mb: int = 8,
+    ):
         self.mac_bytes = bytes.fromhex(mac_address.replace(":", "").replace("-", ""))
         self.chip_type = chip_type.upper()
+        self.flash_size_mb = flash_size_mb
+        self.psram_size_mb = psram_size_mb
         self.is_flashing = False
         self.flash_buffer = bytearray()
         self.flash_write_offset = 0
@@ -146,18 +154,43 @@ class ESP32BootloaderEmulator:
         elif opcode == ESP_READ_REG:
             reg_addr = value
             reg_val = 0
-            if reg_addr == CHIP_DETECT_REG:
-                reg_val = CHIP_MAGIC_ESP32_S3 if "S3" in self.chip_type else CHIP_MAGIC_ESP32_C3
-            elif reg_addr == DATE_REG:
+            if reg_addr in (0x40001000, 0x60000078):
+                if "C3" in self.chip_type:
+                    reg_val = 1763790959  # ESP32-C3
+                elif "C2" in self.chip_type:
+                    reg_val = 1867591791  # ESP32-C2
+                elif "C6" in self.chip_type:
+                    reg_val = 752910447   # ESP32-C6
+                else:
+                    reg_val = 9           # ESP32-S3 (matches "case 9: ESP32S3ROM" in xiaozhi.vn)
+            elif reg_addr in (0x6001A000, 1610612864, 0x60000080):
                 reg_val = 0x20200700
-            elif reg_addr == MAC_REG_BASE:
-                # First 4 bytes of MAC
-                if len(self.mac_bytes) >= 4:
-                    reg_val = struct.unpack("<I", self.mac_bytes[:4])[0]
-            elif reg_addr == MAC_REG_BASE + 4:
-                # Remaining 2 bytes of MAC + reserve
+            elif reg_addr in (0x60007044, 0x6001A004, 0x60008844):
+                # MAC low 4 bytes (e.g. for EC:DA:3B:A1:7E:52 -> 0x3BA17E52)
                 if len(self.mac_bytes) >= 6:
-                    reg_val = struct.unpack("<H", self.mac_bytes[4:6])[0]
+                    reg_val = (self.mac_bytes[2] << 24) | (self.mac_bytes[3] << 16) | (self.mac_bytes[4] << 8) | self.mac_bytes[5]
+                elif len(self.mac_bytes) >= 4:
+                    reg_val = struct.unpack("<I", self.mac_bytes[:4])[0]
+            elif reg_addr in (0x60007048, 0x6001A008, 0x60008848):
+                # MAC high 2 bytes (e.g. for EC:DA:3B:A1:7E:52 -> 0xECDA)
+                if len(self.mac_bytes) >= 2:
+                    reg_val = (self.mac_bytes[0] << 8) | self.mac_bytes[1]
+            elif reg_addr == 0x60007050:
+                reg_val = (1 << 24) | (2 << 18)  # blk_major: 1, minor: 2
+            elif reg_addr == 0x60007054:
+                psram_code = 1 if self.psram_size_mb >= 8 else (2 if self.psram_size_mb >= 2 else 0)
+                reg_val = (1 << 7) | (psram_code << 3) | 1  # AP_3v3 vendor + PSRAM cap + XMC flash
+            elif reg_addr == 0x60007058:
+                reg_val = 0  # major version 0
+            elif reg_addr == 0x60007068:
+                reg_val = 1  # blk version major 1
+            elif reg_addr in (0x60002000, 0x60003000):
+                reg_val = 0  # SPI_CMD_REG operation done
+            elif reg_addr in (0x60002058, 0x60002080, 0x60002010, 0x60003058):
+                cap = 0x18 if self.flash_size_mb >= 16 else (0x17 if self.flash_size_mb >= 8 else (0x19 if self.flash_size_mb >= 32 else 0x16))
+                reg_val = (cap << 16) | (0x40 << 8) | 0x20  # 0x00184020 for 16MB XMC
+            elif reg_addr == 1070526796:
+                reg_val = 3  # USB CDC block
             responses.append(self.build_response(ESP_READ_REG, value=reg_val, status=0, error=0))
 
         elif opcode == ESP_WRITE_REG:

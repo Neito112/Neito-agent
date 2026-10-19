@@ -376,7 +376,8 @@ class MascotCanvasWidget(QWidget):
         act_chat = menu.addAction("💬 Mở ô chat")
         act_settings = menu.addAction("⚙️ Cài đặt")
         menu.addSeparator()
-        act_flasher = menu.addAction("⚡ Mở Web Nạp Firmware (ESP32 USB)")
+        act_xiaozhi = menu.addAction("🤖 Mở Web Nạp Xiaozhi (xiaozhi.vn)")
+        act_flasher = menu.addAction("⚡ Mở Web Nạp Firmware Mochi")
         act_thietlap = menu.addAction("🌐 Mở Cài Đặt (/thietlap)")
         menu.addSeparator()
         act_hide = menu.addAction("👁️ Ẩn vào Khay Hệ Thống")
@@ -388,6 +389,8 @@ class MascotCanvasWidget(QWidget):
             parent._toggle_chat_input()
         elif chosen == act_settings and parent and hasattr(parent, "_toggle_settings"):
             parent._toggle_settings()
+        elif chosen == act_xiaozhi:
+            launch_esp32_web_bridge("https://xiaozhi.vn/")
         elif chosen == act_flasher:
             launch_esp32_web_bridge("https://themochi.huykhong.com/")
         elif chosen == act_thietlap:
@@ -936,15 +939,103 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         p0_lay.setContentsMargins(0, 4, 0, 0)
         p0_lay.setSpacing(5)
 
-        self.lbl_hw_spec = QLabel(
-            "🖥️ Board: ESP32-S3-N16R8-CAM-BOX3 (Dual-Core 240MHz • 16MB Flash • 8MB PSRAM)\n"
-            "📷 Cam Ảo: Nhìn Màn Hình PC (OV2640-ScreenCam) + Chip NPU YOLO11n MCP"
+        hw_box = QFrame()
+        hw_box.setStyleSheet(
+            "background: rgba(15,23,42,210); border: 1px solid rgba(56,189,248,0.45); "
+            "border-radius: 8px; padding: 5px;"
         )
-        self.lbl_hw_spec.setStyleSheet(
-            "background: rgba(15,23,42,190); border: 1px solid rgba(56,189,248,0.35); "
-            "border-radius: 6px; padding: 5px; color: #38bdf8; font-size: 9.8px; font-weight: 700;"
+        hw_box_lay = QVBoxLayout(hw_box)
+        hw_box_lay.setContentsMargins(4, 4, 4, 4)
+        hw_box_lay.setSpacing(4)
+
+        lbl_hw_title = QLabel("⚙️ THÔNG SỐ PHẦN CỨNG ESP32 (TÙY CHỈNH)")
+        lbl_hw_title.setStyleSheet("color: #38bdf8; font-size: 10.5px; font-weight: 800;")
+        hw_box_lay.addWidget(lbl_hw_title)
+
+        # Row 1: Chip Model
+        row_chip = QHBoxLayout()
+        row_chip.setSpacing(4)
+        lbl_c = QLabel("Dòng Chip:")
+        lbl_c.setFixedWidth(65)
+        self.combo_chip_model = QComboBox()
+        self.combo_chip_model.addItem("ESP32-S3 (Dual-Core 240MHz)", "ESP32-S3")
+        self.combo_chip_model.addItem("ESP32-S3-N16R8 (16M/8M)", "ESP32-S3-N16R8")
+        self.combo_chip_model.addItem("ESP32-S3-N8R2 (Mạch Tím)", "ESP32-S3-N8R2")
+        self.combo_chip_model.addItem("ESP32-C3 (160MHz RISC-V)", "ESP32-C3")
+        self.combo_chip_model.addItem("ESP32-C6 (Wi-Fi 6 Thread)", "ESP32-C6")
+        row_chip.addWidget(lbl_c)
+        row_chip.addWidget(self.combo_chip_model, 1)
+        hw_box_lay.addLayout(row_chip)
+
+        # Row 2: Flash & PSRAM
+        row_mem = QHBoxLayout()
+        row_mem.setSpacing(4)
+        lbl_f = QLabel("Flash:")
+        lbl_f.setFixedWidth(38)
+        self.combo_flash = QComboBox()
+        for f in ("16MB", "8MB", "4MB", "32MB"):
+            self.combo_flash.addItem(f, f)
+        lbl_p = QLabel("PSRAM:")
+        lbl_p.setFixedWidth(44)
+        self.combo_psram = QComboBox()
+        for p in ("8MB Octal", "2MB Quad", "16MB Octal", "0MB (Không có)"):
+            self.combo_psram.addItem(p, p)
+        row_mem.addWidget(lbl_f)
+        row_mem.addWidget(self.combo_flash, 1)
+        row_mem.addWidget(lbl_p)
+        row_mem.addWidget(self.combo_psram, 1)
+        hw_box_lay.addLayout(row_mem)
+
+        # Row 3: Display & Cam
+        row_disp = QHBoxLayout()
+        row_disp.setSpacing(4)
+        lbl_dp = QLabel("Màn hình:")
+        lbl_dp.setFixedWidth(65)
+        self.combo_display = QComboBox()
+        self.combo_display.addItem("OLED SSD1306 0.96\" (128x64)", "OLED SSD1306 (0.96 inch)")
+        self.combo_display.addItem("OLED SH1106 1.3\" (128x64)", "OLED SH1106 (1.3 inch)")
+        self.combo_display.addItem("TFT Round 1.28\" GC9A01", "TFT 1.28\" Round")
+        self.combo_display.addItem("TFT 2.4\" ST7789 (240x240)", "TFT ST7789 240x240")
+        self.combo_display.addItem("TFT 3.5\" ST7796 (320x480)", "TFT ST7796 320x480")
+        row_disp.addWidget(lbl_dp)
+        row_disp.addWidget(self.combo_display, 1)
+        hw_box_lay.addLayout(row_disp)
+
+        row_cam = QHBoxLayout()
+        row_cam.setSpacing(4)
+        lbl_cm = QLabel("Camera:")
+        lbl_cm.setFixedWidth(65)
+        self.combo_camera = QComboBox()
+        self.combo_camera.addItem("OV2640-ScreenCam (Màn hình PC)", "OV2640-ScreenCam (Màn hình PC)")
+        self.combo_camera.addItem("OV5640 Ultra-Cam", "OV5640")
+        self.combo_camera.addItem("Tắt Camera", "Tắt")
+        row_cam.addWidget(lbl_cm)
+        row_cam.addWidget(self.combo_camera, 1)
+        hw_box_lay.addLayout(row_cam)
+
+        # Row 4: MAC Address + Random + Save
+        row_mac = QHBoxLayout()
+        row_mac.setSpacing(4)
+        lbl_m = QLabel("Địa chỉ MAC:")
+        lbl_m.setFixedWidth(65)
+        self.input_mac = QLineEdit("EC:DA:3B:A1:7E:52")
+        self.input_mac.setPlaceholderText("EC:DA:3B:xx:xx:xx")
+        self.btn_rand_mac = QPushButton("🎲")
+        self.btn_rand_mac.setToolTip("Tạo ngẫu nhiên địa chỉ MAC Espressif mới")
+        self.btn_rand_mac.clicked.connect(self._randomize_mac)
+        row_mac.addWidget(lbl_m)
+        row_mac.addWidget(self.input_mac, 1)
+        row_mac.addWidget(self.btn_rand_mac)
+        hw_box_lay.addLayout(row_mac)
+
+        self.btn_save_hw = QPushButton("💾 Lưu Cấu Hình Phần Cứng ESP32")
+        self.btn_save_hw.setStyleSheet(
+            "background: linear-gradient(135deg, #0284c7 0%, #00f5d4 100%); color: #020617; font-weight: 800; font-size: 10.5px; padding: 5px; border: none; border-radius: 6px;"
         )
-        p0_lay.addWidget(self.lbl_hw_spec)
+        self.btn_save_hw.clicked.connect(self._save_hardware_specs)
+        hw_box_lay.addWidget(self.btn_save_hw)
+
+        p0_lay.addWidget(hw_box)
 
         code_box = QFrame()
         code_box.setStyleSheet(
@@ -1111,6 +1202,14 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         p2_lay.addWidget(usb_card)
 
         # Main Flasher / Setup Buttons
+        self.btn_open_flasher_xiaozhi = QPushButton("🤖 MỞ WEB NẠP XIAOZHI.VN (HIỆN CỔNG COM9)")
+        self.btn_open_flasher_xiaozhi.setStyleSheet(
+            "background: linear-gradient(135deg, #a855f7 0%, #06b6d4 100%); "
+            "color: #ffffff; font-weight: 800; font-size: 10.5px; padding: 7px; border: none; border-radius: 6px;"
+        )
+        self.btn_open_flasher_xiaozhi.clicked.connect(lambda: launch_esp32_web_bridge("https://xiaozhi.vn/"))
+        p2_lay.addWidget(self.btn_open_flasher_xiaozhi)
+
         self.btn_open_flasher_mochi = QPushButton("⚡ MỞ WEB NẠP FIRMWARE MOCHI (CÓ CỔNG COM9)")
         self.btn_open_flasher_mochi.setStyleSheet(
             "background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); "
@@ -1201,6 +1300,42 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         finally:
             self.btn_refresh_ota.setText("🔄 Lấy Mã")
 
+    def _randomize_mac(self):
+        import random
+        # Espressif OUI prefix: EC:DA:3B
+        b3 = random.randint(0x00, 0xFF)
+        b4 = random.randint(0x00, 0xFF)
+        b5 = random.randint(0x00, 0xFF)
+        new_mac = f"EC:DA:3B:{b3:02X}:{b4:02X}:{b5:02X}"
+        self.input_mac.setText(new_mac)
+
+    def _save_hardware_specs(self):
+        self.btn_save_hw.setText("⏳ Đang lưu...")
+        QApplication.processEvents()
+        payload = {
+            "chip_model": self.combo_chip_model.currentData() or "ESP32-S3",
+            "flash_size": self.combo_flash.currentData() or "16MB",
+            "psram_size": self.combo_psram.currentData() or "8MB Octal",
+            "display_type": self.combo_display.currentData() or "OLED SSD1306 (0.96 inch)",
+            "camera_module": self.combo_camera.currentData() or "OV2640-ScreenCam (Màn hình PC)",
+            "mac_address": self.input_mac.text().strip() or "EC:DA:3B:A1:7E:52",
+        }
+        try:
+            r = httpx.post(f"{BACKEND_HTTP}/api/esp32/hardware", json=payload, timeout=3.0)
+            if r.status_code == 200:
+                self.btn_save_hw.setText("✓ ĐÃ LƯU PHẦN CỨNG!")
+                self.btn_save_hw.setStyleSheet("background: #10b981; color: #fff; font-weight: 800; font-size: 10.5px; padding: 5px; border-radius: 6px;")
+                QTimer.singleShot(1800, lambda: (
+                    self.btn_save_hw.setText("💾 Lưu Cấu Hình Phần Cứng ESP32"),
+                    self.btn_save_hw.setStyleSheet("background: linear-gradient(135deg, #0284c7 0%, #00f5d4 100%); color: #020617; font-weight: 800; font-size: 10.5px; padding: 5px; border: none; border-radius: 6px;")
+                ))
+                self.refresh_status()
+            else:
+                self.btn_save_hw.setText("Lỗi lưu")
+        except Exception:
+            self.btn_save_hw.setText("Lỗi kết nối")
+            QTimer.singleShot(1800, lambda: self.btn_save_hw.setText("💾 Lưu Cấu Hình Phần Cứng ESP32"))
+
     def _on_yolo_hw_mode_changed(self):
         mode = self.combo_yolo_hw.currentData() or "eco_1fps"
         try:
@@ -1224,6 +1359,37 @@ class MobileBridgeDialog(DraggableFramelessWidget):
                     self._refresh_xiaozhi_ota()
                 if mac:
                     self.lbl_xiaozhi_mac.setText(f"MAC: {mac} | Server: {conn.get('xiaozhi_ws_url', '')}")
+
+                esp_hw = hw.get("esp32_hardware") or {}
+                if esp_hw:
+                    c_idx = self.combo_chip_model.findData(esp_hw.get("chip_model", "ESP32-S3"))
+                    if c_idx >= 0:
+                        self.combo_chip_model.blockSignals(True)
+                        self.combo_chip_model.setCurrentIndex(c_idx)
+                        self.combo_chip_model.blockSignals(False)
+                    f_idx = self.combo_flash.findData(esp_hw.get("flash_size", "16MB"))
+                    if f_idx >= 0:
+                        self.combo_flash.blockSignals(True)
+                        self.combo_flash.setCurrentIndex(f_idx)
+                        self.combo_flash.blockSignals(False)
+                    p_idx = self.combo_psram.findData(esp_hw.get("psram_size", "8MB Octal"))
+                    if p_idx >= 0:
+                        self.combo_psram.blockSignals(True)
+                        self.combo_psram.setCurrentIndex(p_idx)
+                        self.combo_psram.blockSignals(False)
+                    d_idx = self.combo_display.findData(esp_hw.get("display_type", "OLED SSD1306 (0.96 inch)"))
+                    if d_idx >= 0:
+                        self.combo_display.blockSignals(True)
+                        self.combo_display.setCurrentIndex(d_idx)
+                        self.combo_display.blockSignals(False)
+                    cam_idx = self.combo_camera.findData(esp_hw.get("camera_module", "OV2640-ScreenCam (Màn hình PC)"))
+                    if cam_idx >= 0:
+                        self.combo_camera.blockSignals(True)
+                        self.combo_camera.setCurrentIndex(cam_idx)
+                        self.combo_camera.blockSignals(False)
+                    if esp_hw.get("mac_address"):
+                        self.input_mac.setText(esp_hw.get("mac_address"))
+
                 ymode = npu.get("mode", "eco_1fps")
                 y_idx = self.combo_yolo_hw.findData(ymode)
                 if y_idx >= 0:
@@ -2459,7 +2625,10 @@ class NeitoDesktopOverlay(QWidget):
 
         tray_menu.addSeparator()
 
-        act_flasher = tray_menu.addAction("⚡ Mở Web Nạp Firmware (ESP32 USB)")
+        act_xiaozhi = tray_menu.addAction("🤖 Mở Web Nạp Xiaozhi (xiaozhi.vn)")
+        act_xiaozhi.triggered.connect(lambda: launch_esp32_web_bridge("https://xiaozhi.vn/"))
+
+        act_flasher = tray_menu.addAction("⚡ Mở Web Nạp Firmware Mochi")
         act_flasher.triggered.connect(lambda: launch_esp32_web_bridge("https://themochi.huykhong.com/"))
 
         act_thietlap = tray_menu.addAction("🌐 Mở Cài Đặt (/thietlap)")

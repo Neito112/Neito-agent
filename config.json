@@ -48,7 +48,7 @@
   },
   "voice": {
     "engine": "edge_tts",
-    "voice_preset": "edge_tts:zh-CN-XiaoxiaoNeural",
+    "voice_preset": "mochi_native:moshi_pack",
     "omnivoice_url": "http://localhost:8020/v1/audio/speech",
     "omnivoice_voice": "neito_vi_female",
     "edge_voice": "vi-VN-HoaiMyNeural",
@@ -64,11 +64,11 @@
     "enabled": true,
     "detector_model": "yolo11n.pt",
     "trainer_model": "yolov8s-worldv2.pt",
-    "fps_mode": "eco",
+    "fps_mode": "balanced",
     "confidence_threshold": 0.38,
     "use_half_precision": true,
     "capture_active_window_only": true,
-    "auto_reflex_on_detection": false
+    "auto_reflex_on_detection": true
   },
   "mascot": {
     "scale": 1.0,

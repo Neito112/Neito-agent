@@ -110,6 +110,18 @@ class MascotConfig(BaseModel):
     gaming_eco_mode: bool = True
 
 
+class ESP32HardwareConfig(BaseModel):
+    chip_model: str = "ESP32-S3"           # ESP32-S3, ESP32-S3-N16R8, ESP32-S3-N8R2, ESP32-C3, ESP32-C6
+    flash_size: str = "16MB"               # 16MB, 8MB, 4MB, 32MB
+    psram_size: str = "8MB Octal"          # 8MB Octal, 2MB Quad, 16MB Octal, 0MB (Không có)
+    display_type: str = "OLED SSD1306 (0.96 inch)"  # OLED SSD1306 0.96", OLED SH1106 1.3", TFT 1.28" Round, TFT ST7789 240x240
+    camera_module: str = "OV2640-ScreenCam (Màn hình PC)"  # OV2640-ScreenCam, OV5640, Tắt
+    mac_address: str = "EC:DA:3B:A1:7E:52"
+    com_port: str = "COM9"
+    usb_vid: str = "0x303A"
+    usb_pid: str = "0x1001"
+
+
 class AppConfig(BaseModel):
     agent_name: str = "Neito"
     system_persona: str = (
@@ -120,6 +132,7 @@ class AppConfig(BaseModel):
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
     vision: VisionConfig = Field(default_factory=VisionConfig)
     mascot: MascotConfig = Field(default_factory=MascotConfig)
+    esp32_hardware: ESP32HardwareConfig = Field(default_factory=ESP32HardwareConfig)
 
 
 class ConfigManager:

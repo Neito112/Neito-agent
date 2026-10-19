@@ -136,14 +136,27 @@ class ESP32S3UltimateEmulator:
         telem = window_watcher.get_resource_telemetry()
         win = window_watcher.get_active_window()
         proto = protocol_engine.get_active_protocol()
+        hw = config_manager.config.esp32_hardware
+        flash_num = 16
+        try:
+            flash_num = int("".join(filter(str.isdigit, hw.flash_size)) or "16")
+        except Exception:
+            pass
+        psram_num = 8
+        try:
+            psram_num = int("".join(filter(str.isdigit, hw.psram_size)) or "8")
+        except Exception:
+            pass
+
         return {
-            "board_model": "ESP32-S3-N16R8-CAM-BOX3 (Ultimate AI Desktop Emulator)",
-            "chip_model_name": "esp32s3",
-            "cpu": "Dual-Core XTensa LX7 @ 240MHz + Vector AI PIE Extensions",
-            "flash_size_mb": 16,
-            "psram_size_mb": 8,
-            "mac_address": self.mac_address,
+            "board_model": f"{hw.chip_model} (Flash {hw.flash_size} • PSRAM {hw.psram_size})",
+            "chip_model_name": hw.chip_model.lower().replace("-", ""),
+            "cpu": "Dual-Core XTensa LX7 @ 240MHz + Vector AI PIE Extensions" if "S3" in hw.chip_model else "Single-Core 32-bit RISC-V @ 160MHz",
+            "flash_size_mb": flash_num,
+            "psram_size_mb": psram_num,
+            "mac_address": hw.mac_address or self.mac_address,
             "client_id": self.client_id,
+            "esp32_hardware": hw.model_dump(),
             "firmware": {
                 "xiaozhi_version": self.firmware_version,
                 "mochi_version": "4.3.2",
@@ -194,6 +207,15 @@ class ESP32S3UltimateEmulator:
             "mcp_tools_count": len(self.get_mcp_tools_list()),
             "recent_mcp_calls": self.mcp_call_log[-8:],
         }
+
+    def update_hardware_config(self, patch: Dict[str, Any]) -> Dict[str, Any]:
+        updated = config_manager.update_partial({"esp32_hardware": patch})
+        hw = updated.esp32_hardware
+        if hw.mac_address:
+            self.mac_address = hw.mac_address
+            self.state["mac_address"] = hw.mac_address
+            self._save_state()
+        return hw.model_dump()
 
     def build_xiaozhi_ota_payload(self) -> Dict[str, Any]:
         """Builds the exact JSON body expected by `https://api.tenclass.net/xiaozhi/ota/`."""
