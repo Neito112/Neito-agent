@@ -116,6 +116,8 @@ class ESP32HardwareConfig(BaseModel):
     psram_size: str = "8MB Octal"          # 8MB Octal, 2MB Quad, 16MB Octal, 0MB (Không có)
     display_type: str = "OLED SSD1306 (0.96 inch)"  # OLED SSD1306 0.96", OLED SH1106 1.3", TFT 1.28" Round, TFT ST7789 240x240
     camera_module: str = "OV2640-ScreenCam (Màn hình PC)"  # OV2640-ScreenCam, OV5640, Tắt
+    active_firmware: str = "xiaozhi_s3_oled_096"
+    active_firmware_name: str = "Xiaozhi AI - ESP32-S3 Tím (OLED 0.96 inch SSD1306)"
     mac_address: str = "EC:DA:3B:A1:7E:52"
     com_port: str = "COM9"
     usb_vid: str = "0x303A"

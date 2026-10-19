@@ -254,16 +254,17 @@ class FirmwareFlasherEngine:
             time.sleep(0.3)
 
             # 8. Auto-apply corresponding Hardware Configuration
-            if target_preset:
-                patch = {
-                    "chip_model": target_preset.get("chip_model", "ESP32-S3"),
-                    "flash_size": target_preset.get("flash_size", "16MB"),
-                    "psram_size": target_preset.get("psram_size", "8MB Octal"),
-                    "display_type": target_preset.get("display_type", "OLED SSD1306 (0.96 inch)"),
-                    "camera_module": target_preset.get("camera_module", "OV2640-ScreenCam (Màn hình PC)"),
-                }
-                esp32_emulator.update_hardware_config(patch)
-                self._append_log(f"✓ Đã tự động cấu hình phần cứng: {patch['chip_model']} • {patch['flash_size']} Flash • {patch['display_type']}")
+            patch = {
+                "active_firmware": preset_id or "custom",
+                "active_firmware_name": rom_title,
+                "chip_model": target_preset.get("chip_model", "ESP32-S3") if target_preset else "ESP32-S3",
+                "flash_size": target_preset.get("flash_size", "16MB") if target_preset else "16MB",
+                "psram_size": target_preset.get("psram_size", "8MB Octal") if target_preset else "8MB Octal",
+                "display_type": target_preset.get("display_type", "OLED SSD1306 (0.96 inch)") if target_preset else "OLED SSD1306 (0.96 inch)",
+                "camera_module": target_preset.get("camera_module", "OV2640-ScreenCam (Màn hình PC)") if target_preset else "Tắt",
+            }
+            esp32_emulator.update_hardware_config(patch)
+            self._append_log(f"✓ Đã tự động cấu hình phần cứng: {patch['chip_model']} • {patch['flash_size']} Flash • {patch['display_type']}")
 
             # 9. If Mochi firmware: extract faces & sounds
             if preset_id == "mochi_c3_v432" or "themochi" in (custom_url or ""):

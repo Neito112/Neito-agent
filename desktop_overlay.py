@@ -248,6 +248,11 @@ class MascotCanvasWidget(QWidget):
         self._current_oled_frame: np.ndarray = self.mochi_player.step(0.016)
         self._rgba_buf = np.zeros((64, 128, 4), dtype=np.uint8)
 
+        self.firmware_style: str = "xiaozhi_oled"  # "xiaozhi_oled" | "xiaozhi_round" | "xiaozhi_box3" | "the_mochi"
+        self.blink_val: float = 1.0
+        self.audio_bars: List[float] = [0.1] * 8
+        self._init_firmware_style()
+
         self.emotion = "idle"
         self.mouth_open = 0.0
         self.arousal = 0.35
@@ -279,6 +284,39 @@ class MascotCanvasWidget(QWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(16)
+
+    def _init_firmware_style(self):
+        try:
+            from backend.core.config import config_manager
+            hw = config_manager.config.esp32_hardware
+            active = getattr(hw, "active_firmware", "") or hw.display_type
+            self.set_firmware_style(active)
+        except Exception:
+            self.firmware_style = "xiaozhi_oled"
+
+    def set_firmware_style(self, identifier: str):
+        s = str(identifier or "").lower()
+        if "round" in s or "1.28" in s or "128r" in s:
+            self.firmware_style = "xiaozhi_round"
+        elif "box3" in s or "st7789" in s or "box" in s:
+            self.firmware_style = "xiaozhi_box3"
+        elif "mochi" in s or ("c3" in s and "s3" not in s):
+            self.firmware_style = "the_mochi"
+        else:
+            self.firmware_style = "xiaozhi_oled"
+        self.update()
+
+    def _save_firmware_style(self, fw_id: str, disp: str):
+        def _bg():
+            try:
+                httpx.post(
+                    f"{BACKEND_HTTP}/api/esp32/hardware",
+                    json={"active_firmware": fw_id, "display_type": disp},
+                    timeout=2.0,
+                )
+            except Exception:
+                pass
+        threading.Thread(target=_bg, daemon=True).start()
 
     def set_scale(self, s: float):
         self.scale_factor = max(0.55, min(2.3, float(s)))
@@ -378,6 +416,13 @@ class MascotCanvasWidget(QWidget):
         act_chat = menu.addAction("💬 Mở ô chat")
         act_settings = menu.addAction("⚙️ Cài đặt")
         menu.addSeparator()
+        menu_fw = menu.addMenu("🎭 Đổi Kiểu Mặt (Firmware)")
+        act_fw_s3 = menu_fw.addAction("🤖 Xiaozhi AI S3 Tím (OLED 0.96\"/1.3\")")
+        act_fw_r = menu_fw.addAction("⌚ Xiaozhi S3 Tròn (TFT 1.28\" Round)")
+        act_fw_box = menu_fw.addAction("📦 Xiaozhi Box 3 (TFT 2.4\" Màu + Cam)")
+        act_fw_mochi = menu_fw.addAction("🍡 The Mochi Gốc (71 Biểu Cảm Pixel)")
+
+        menu.addSeparator()
         act_xiaozhi = menu.addAction("🤖 Mở Web Nạp Xiaozhi (xiaozhi.vn)")
         act_flasher = menu.addAction("⚡ Mở Web Nạp Firmware Mochi")
         act_thietlap = menu.addAction("🌐 Mở Cài Đặt (/thietlap)")
@@ -391,6 +436,26 @@ class MascotCanvasWidget(QWidget):
             parent._toggle_chat_input()
         elif chosen == act_settings and parent and hasattr(parent, "_toggle_settings"):
             parent._toggle_settings()
+        elif chosen == act_fw_s3:
+            self.set_firmware_style("xiaozhi_s3_oled_096")
+            self._save_firmware_style("xiaozhi_s3_oled_096", "OLED SSD1306 (0.96 inch)")
+            if parent and hasattr(parent, "_show_speech_bubble"):
+                parent._show_speech_bubble("Đã chuyển mặt sang Xiaozhi AI S3 OLED! ✨")
+        elif chosen == act_fw_r:
+            self.set_firmware_style("xiaozhi_s3_tft_128r")
+            self._save_firmware_style("xiaozhi_s3_tft_128r", "TFT 1.28\" Round")
+            if parent and hasattr(parent, "_show_speech_bubble"):
+                parent._show_speech_bubble("Đã chuyển mặt sang Xiaozhi TFT Tròn 1.28\"! ✨")
+        elif chosen == act_fw_box:
+            self.set_firmware_style("xiaozhi_s3_box3")
+            self._save_firmware_style("xiaozhi_s3_box3", "TFT ST7789 240x240")
+            if parent and hasattr(parent, "_show_speech_bubble"):
+                parent._show_speech_bubble("Đã chuyển mặt sang Xiaozhi Box 3 Color! ✨")
+        elif chosen == act_fw_mochi:
+            self.set_firmware_style("mochi_c3_v432")
+            self._save_firmware_style("mochi_c3_v432", "OLED SSD1306 (0.96 inch)")
+            if parent and hasattr(parent, "_show_speech_bubble"):
+                parent._show_speech_bubble("Đã chuyển mặt sang The Mochi 71 biểu cảm! ✨")
         elif chosen == act_xiaozhi:
             launch_esp32_web_bridge("https://xiaozhi.vn/")
         elif chosen == act_flasher:
@@ -466,14 +531,31 @@ class MascotCanvasWidget(QWidget):
             self.emotion if self.emotion in ("listening", "thinking") else "idle"
         )
         emo_str = "neutral" if self.emotion in ("idle", "scanning", "speaking", "listening") else self.emotion
-        self._current_oled_frame = self.mochi_player.step(
-            dt_sec=dt_sec,
-            state=state_str,
-            emotion=emo_str,
-            gaze_x=self.look_x / 9.5,
-            gaze_y=self.look_y / 6.5,
-            lip_energy=self.mouth_open,
-        )
+        # Smooth natural blinking for Xiaozhi robot eyes
+        if now > self.next_blink_ts:
+            self.blink_val = 0.05
+            self.next_blink_ts = now + 2.8
+        else:
+            self.blink_val += (1.0 - self.blink_val) * 0.25
+
+        # Audio equalizer simulation for speaking / listening
+        energy = max(self.mouth_open, 0.4 if self.emotion in ("speaking", "listening") else 0.0)
+        for i in range(len(self.audio_bars)):
+            if energy > 0.04:
+                tgt = math.sin(now * (8.5 + i * 2.2) + i) * 0.45 + 0.55
+                self.audio_bars[i] += (tgt * energy - self.audio_bars[i]) * 0.35
+            else:
+                self.audio_bars[i] *= 0.82
+
+        if self.firmware_style == "the_mochi":
+            self._current_oled_frame = self.mochi_player.step(
+                dt_sec=dt_sec,
+                state=state_str,
+                emotion=emo_str,
+                gaze_x=self.look_x / 9.5,
+                gaze_y=self.look_y / 6.5,
+                lip_energy=self.mouth_open,
+            )
 
         self.update()
 
@@ -544,40 +626,86 @@ class MascotCanvasWidget(QWidget):
         p.setBrush(QBrush(shell_grad))
         p.drawEllipse(QPointF(0, 0), r, r)
 
-        # 4. Deep Glossy Black OLED Face Visor
+        # 4. Deep Glossy Face Visor (Shape morphs according to active Firmware!)
         visor_rect = QRectF(-56, -42, 112, 86)
         visor_grad = QLinearGradient(0, -42, 0, 44)
         visor_grad.setColorAt(0.0, QColor("#060911"))
         visor_grad.setColorAt(0.5, QColor("#03050a"))
         visor_grad.setColorAt(1.0, QColor("#080d1a"))
 
-        p.setPen(QPen(glow_col, 2.2))
-        p.setBrush(QBrush(visor_grad))
-        p.drawRoundedRect(visor_rect, 38, 38)
-
-        # Clip inside Visor for OLED Face & Kawaii Cheeks
-        p.save()
-        visor_clip = QPainterPath()
-        visor_clip.addRoundedRect(visor_rect.adjusted(3, 3, -3, -3), 35, 35)
-        p.setClipPath(visor_clip)
-
         gx = self.look_x * 0.48
         gy = self.look_y * 0.48
 
-        # 5. Soft Pink Kawaii Cheeks (shown when face doesn't already draw pixel cheeks)
-        if self.mochi_player.current_face in ("mac_dinh", "smile", "happy_2", "nhin_ben_trai", "nhin_ben_phai", "nhin_xuong", "nheo_mat"):
-            p.setPen(Qt.NoPen)
-            p.setBrush(blush_col)
-            p.drawEllipse(QPointF(-35 + gx, 19 + gy), 8.0, 4.2)
-            p.drawEllipse(QPointF(35 + gx, 19 + gy), 8.0, 4.2)
+        if self.firmware_style == "xiaozhi_round":
+            visor_r = 44.0
+            p.setPen(QPen(glow_col, 2.5))
+            p.setBrush(QBrush(visor_grad))
+            p.drawEllipse(QPointF(0, 0), visor_r, visor_r)
 
-        # 6. Authentic ESP32 "The Mochi" 128x64 OLED Face Bitmap
-        self._draw_mochi_oled_frame(p, gx, gy, glow_col, highlight_col)
-        p.restore()
+            # Outer cyber bezel ring
+            p.setPen(QPen(QColor(0, 245, 212, 110), 1.2))
+            p.drawEllipse(QPointF(0, 0), visor_r + 3.5, visor_r + 3.5)
+
+            p.save()
+            visor_clip = QPainterPath()
+            visor_clip.addEllipse(QPointF(0, 0), visor_r - 2.0, visor_r - 2.0)
+            p.setClipPath(visor_clip)
+            self._draw_xiaozhi_round_face(p, gx, gy, glow_col, highlight_col)
+            p.restore()
+
+        elif self.firmware_style == "xiaozhi_box3":
+            box_grad = QLinearGradient(-56, -42, 56, 44)
+            box_grad.setColorAt(0.0, QColor("#c084fc"))
+            box_grad.setColorAt(1.0, QColor("#00f5d4"))
+            p.setPen(QPen(QBrush(box_grad), 2.5))
+            p.setBrush(QBrush(visor_grad))
+            p.drawRoundedRect(visor_rect, 30, 30)
+
+            p.save()
+            visor_clip = QPainterPath()
+            visor_clip.addRoundedRect(visor_rect.adjusted(3, 3, -3, -3), 28, 28)
+            p.setClipPath(visor_clip)
+            self._draw_xiaozhi_box3_face(p, gx, gy, glow_col, highlight_col)
+            p.restore()
+
+        elif self.firmware_style == "xiaozhi_oled":
+            p.setPen(QPen(glow_col, 2.2))
+            p.setBrush(QBrush(visor_grad))
+            p.drawRoundedRect(visor_rect, 38, 38)
+
+            p.save()
+            visor_clip = QPainterPath()
+            visor_clip.addRoundedRect(visor_rect.adjusted(3, 3, -3, -3), 35, 35)
+            p.setClipPath(visor_clip)
+            self._draw_xiaozhi_oled_face(p, gx, gy, glow_col, highlight_col)
+            p.restore()
+
+        else:
+            # The Mochi classic 71 OLED bitmap faces
+            p.setPen(QPen(glow_col, 2.2))
+            p.setBrush(QBrush(visor_grad))
+            p.drawRoundedRect(visor_rect, 38, 38)
+
+            p.save()
+            visor_clip = QPainterPath()
+            visor_clip.addRoundedRect(visor_rect.adjusted(3, 3, -3, -3), 35, 35)
+            p.setClipPath(visor_clip)
+
+            if self.mochi_player.current_face in ("mac_dinh", "smile", "happy_2", "nhin_ben_trai", "nhin_ben_phai", "nhin_xuong", "nheo_mat"):
+                p.setPen(Qt.NoPen)
+                p.setBrush(blush_col)
+                p.drawEllipse(QPointF(-35 + gx, 19 + gy), 8.0, 4.2)
+                p.drawEllipse(QPointF(35 + gx, 19 + gy), 8.0, 4.2)
+
+            self._draw_mochi_oled_frame(p, gx, gy, glow_col, highlight_col)
+            p.restore()
 
         # Subtle top glass reflection arc on visor
         glass_path = QPainterPath()
-        glass_path.addRoundedRect(QRectF(-44, -36, 88, 16), 8, 8)
+        if self.firmware_style == "xiaozhi_round":
+            glass_path.addEllipse(QRectF(-32, -38, 64, 22))
+        else:
+            glass_path.addRoundedRect(QRectF(-44, -36, 88, 16), 8, 8)
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(255, 255, 255, 16))
         p.drawPath(glass_path)
@@ -632,6 +760,267 @@ class MascotCanvasWidget(QWidget):
         else:
             target_rect = QRectF(-53.0, -27.0, 106.0, 53.0)
         p.drawImage(target_rect, qimg)
+
+    def _draw_xiaozhi_oled_face(
+        self,
+        p: QPainter,
+        gx: float,
+        gy: float,
+        glow_col: QColor,
+        highlight_col: QColor,
+    ):
+        """
+        Renders the authentic Xiaozhi AI Robot OLED Face:
+        - Sleek OLED Capsule Robot Eyes with smooth eye-blinks and gaze tracking.
+        - Top Status HUD: Wi-Fi signal arcs + 'XIAOZHI AI' header.
+        - Dynamic voice waveform / expressive curved smile mouth.
+        - Bottom Status: 'ESP32-S3 • ONLINE'.
+        """
+        # 1. Top Status HUD Bar
+        p.setPen(QColor(0, 245, 212, 190))
+        f = p.font()
+        f.setPointSize(6)
+        f.setBold(True)
+        p.setFont(f)
+        p.drawText(QRectF(-48, -37, 60, 12), Qt.AlignLeft | Qt.AlignVCenter, "📶 XIAOZHI")
+        p.drawText(QRectF(12, -37, 36, 12), Qt.AlignRight | Qt.AlignVCenter, "128x64")
+
+        # 2. Xiaozhi Robot Eyes
+        now = time.perf_counter()
+        eye_w = 15.0
+        eye_h = max(2.5, 26.0 * self.blink_val)
+        lx = -25.0 + gx
+        rx = 25.0 + gx
+        ey = -2.0 + gy
+
+        if self.emotion in ("happy", "love"):
+            # Happy squinted anime arcs: ^  ^
+            p.setPen(QPen(glow_col, 3.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            p.setBrush(Qt.NoBrush)
+            for cx in (lx, rx):
+                arc_path = QPainterPath()
+                arc_path.moveTo(cx - 9.0, ey + 3.0)
+                arc_path.quadTo(cx, ey - 9.0, cx + 9.0, ey + 3.0)
+                p.drawPath(arc_path)
+            # Soft pink cheek blush
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(255, 117, 143, 140))
+            p.drawEllipse(QPointF(lx - 4.0, ey + 15.0), 6.5, 3.5)
+            p.drawEllipse(QPointF(rx + 4.0, ey + 15.0), 6.5, 3.5)
+
+        elif self.emotion == "thinking":
+            # Swirling cyber loading rings
+            ang = (now * 260.0) % 360.0
+            p.setPen(QPen(QColor(192, 132, 252, 200), 2.2))
+            p.setBrush(Qt.NoBrush)
+            for cx in (lx, rx):
+                p.drawArc(QRectF(cx - 10, ey - 10, 20, 20), int(ang * 16), int(220 * 16))
+                p.setBrush(QColor("#00f5d4"))
+                p.drawEllipse(QPointF(cx, ey), 2.5, 2.5)
+                p.setBrush(Qt.NoBrush)
+
+        elif self.emotion == "listening":
+            # Attentive wide glowing capsule eyes + central soundwave
+            p.setPen(QPen(QColor(0, 245, 212, 140), 1.5))
+            grad_eye = QLinearGradient(0, ey - 14, 0, ey + 14)
+            grad_eye.setColorAt(0.0, QColor("#ffffff"))
+            grad_eye.setColorAt(1.0, QColor("#00f5d4"))
+            p.setBrush(QBrush(grad_eye))
+            for cx in (lx, rx):
+                p.drawRoundedRect(QRectF(cx - eye_w / 2.0, ey - 14.0, eye_w, 28.0), 7.0, 7.0)
+
+            # Central audio waves between eyes
+            p.setPen(QPen(QColor("#00f5d4"), 2.0, Qt.SolidLine, Qt.RoundCap))
+            sw = math.sin(now * 12.0) * 6.0
+            p.drawLine(QPointF(0, ey - sw), QPointF(0, ey + sw))
+            p.drawLine(QPointF(-6, ey - sw * 0.6), QPointF(-6, ey + sw * 0.6))
+            p.drawLine(QPointF(6, ey - sw * 0.6), QPointF(6, ey + sw * 0.6))
+
+        else:
+            # Classic Xiaozhi Capsule Robot Eyes
+            eye_grad = QLinearGradient(0, ey - eye_h / 2.0, 0, ey + eye_h / 2.0)
+            eye_grad.setColorAt(0.0, QColor("#ffffff"))
+            eye_grad.setColorAt(0.85, glow_col)
+            eye_grad.setColorAt(1.0, QColor(0, 180, 216))
+
+            p.setPen(QPen(glow_col, 1.2))
+            p.setBrush(QBrush(eye_grad))
+            for cx in (lx, rx):
+                p.drawRoundedRect(
+                    QRectF(cx - eye_w / 2.0, ey - eye_h / 2.0, eye_w, eye_h),
+                    min(eye_w / 2.0, eye_h / 2.0),
+                    min(eye_w / 2.0, eye_h / 2.0),
+                )
+                # Specular corner reflection shine
+                if self.blink_val > 0.4:
+                    p.setPen(Qt.NoPen)
+                    p.setBrush(QColor(255, 255, 255, 220))
+                    p.drawEllipse(QPointF(cx - 2.5, ey - eye_h / 3.0), 2.8, 2.8)
+
+        # 3. Dynamic Mouth / Speaking Waveform
+        if self.mouth_open > 0.04:
+            p.setPen(QPen(glow_col, 2.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            m_path = QPainterPath()
+            m_path.moveTo(-16, 17)
+            amp = self.mouth_open * 11.0
+            s1 = math.sin(now * 22.0) * amp
+            s2 = math.cos(now * 20.0) * amp
+            m_path.quadTo(-8, 17 - s1, 0, 17 + s2)
+            m_path.quadTo(8, 17 + s1, 16, 17)
+            p.drawPath(m_path)
+        else:
+            # Cute subtle smile arc
+            p.setPen(QPen(glow_col, 1.8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            s_path = QPainterPath()
+            s_path.moveTo(-8, 16)
+            s_path.quadTo(0, 19.5, 8, 16)
+            p.drawPath(s_path)
+
+        # 4. Bottom Footer Bar
+        p.setPen(QColor(100, 116, 139, 190))
+        f = p.font()
+        f.setPointSize(5)
+        f.setBold(False)
+        p.setFont(f)
+        p.drawText(QRectF(-48, 26, 96, 10), Qt.AlignCenter, "ESP32-S3 • ONLINE")
+
+    def _draw_xiaozhi_round_face(
+        self,
+        p: QPainter,
+        gx: float,
+        gy: float,
+        glow_col: QColor,
+        highlight_col: QColor,
+    ):
+        """
+        Renders the Xiaozhi 1.28-inch Round TFT Watchface UI (GC9A01):
+        - Circular radar ticks pulsing around 360° perimeter.
+        - Cute circular anime robot eyes in center.
+        - Dial HUD and digital clock status.
+        """
+        now = time.perf_counter()
+        # 1. Circular Equalizer Ticks around perimeter (24 ticks)
+        for i in range(24):
+            ang = i * (360.0 / 24.0)
+            rad = math.radians(ang)
+            bar_len = 2.0 + self.audio_bars[i % len(self.audio_bars)] * 5.0
+            r_out = 39.0
+            r_in = r_out - bar_len
+            x1 = math.cos(rad) * r_in
+            y1 = math.sin(rad) * r_in
+            x2 = math.cos(rad) * r_out
+            y2 = math.sin(rad) * r_out
+            p.setPen(QPen(QColor(0, 245, 212, 170), 1.4, Qt.SolidLine, Qt.RoundCap))
+            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+
+        # 2. Center Anime Robot Eyes
+        ey = -2.0 + gy
+        eye_r = 8.5
+        h_scale = max(0.1, self.blink_val)
+        for cx in (-18.0 + gx, 18.0 + gx):
+            eye_grad = QRadialGradient(QPointF(cx - 2, ey - 2), eye_r)
+            eye_grad.setColorAt(0.0, QColor("#ffffff"))
+            eye_grad.setColorAt(0.6, QColor("#00f5d4"))
+            eye_grad.setColorAt(1.0, QColor("#0284c7"))
+            p.setPen(QPen(glow_col, 1.2))
+            p.setBrush(QBrush(eye_grad))
+            p.drawEllipse(QPointF(cx, ey), eye_r, eye_r * h_scale)
+
+            # Specular sparkle
+            if self.blink_val > 0.4:
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor("#ffffff"))
+                p.drawEllipse(QPointF(cx - 2.5, ey - 2.5), 2.2, 2.2)
+
+        # 3. Mouth
+        if self.mouth_open > 0.04:
+            p.setPen(QPen(glow_col, 2.0, Qt.SolidLine, Qt.RoundCap))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(QPointF(0, 13), 5.0, self.mouth_open * 7.0)
+        else:
+            p.setPen(QPen(glow_col, 1.6, Qt.SolidLine, Qt.RoundCap))
+            p.setBrush(Qt.NoBrush)
+            sp = QPainterPath()
+            sp.moveTo(-6, 13)
+            sp.quadTo(0, 16, 6, 13)
+            p.drawPath(sp)
+
+        # 4. Status
+        p.setPen(QColor(56, 189, 248, 190))
+        f = p.font()
+        f.setPointSize(5)
+        f.setBold(True)
+        p.setFont(f)
+        p.drawText(QRectF(-35, 22, 70, 10), Qt.AlignCenter, "1.28\" ROUND TFT")
+
+    def _draw_xiaozhi_box3_face(
+        self,
+        p: QPainter,
+        gx: float,
+        gy: float,
+        glow_col: QColor,
+        highlight_col: QColor,
+    ):
+        """
+        Renders the Xiaozhi Box 3 (TFT 2.4" ST7789 Color UI):
+        - Top Badge: [📷 OV2640-Cam] [BOX 3] in vibrant color pills.
+        - Expressive colorful anime robot eyes with purple-to-cyan gradient.
+        - 8 Colorful spectrum equalizer bars dancing with live voice audio!
+        """
+        # 1. Top HUD Header
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(16, 185, 129, 210))
+        p.drawRoundedRect(QRectF(-48, -36, 48, 11), 4, 4)
+        p.setPen(QColor("#ffffff"))
+        f = p.font()
+        f.setPointSize(5)
+        f.setBold(True)
+        p.setFont(f)
+        p.drawText(QRectF(-48, -36, 48, 11), Qt.AlignCenter, "📷 SCREEN-CAM")
+
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(168, 85, 247, 190))
+        p.drawRoundedRect(QRectF(14, -36, 34, 11), 4, 4)
+        p.setPen(QColor("#ffffff"))
+        p.drawText(QRectF(14, -36, 34, 11), Qt.AlignCenter, "BOX 3")
+
+        # 2. Colorful Robot Eyes
+        ey = -2.0 + gy
+        eye_w = 17.0
+        eye_h = max(2.5, 27.0 * self.blink_val)
+        for cx in (-25.0 + gx, 25.0 + gx):
+            eye_grad = QLinearGradient(cx, ey - eye_h / 2.0, cx, ey + eye_h / 2.0)
+            eye_grad.setColorAt(0.0, QColor("#ffffff"))
+            eye_grad.setColorAt(0.4, QColor("#38bdf8"))
+            eye_grad.setColorAt(0.8, QColor("#c084fc"))
+            eye_grad.setColorAt(1.0, QColor("#ec4899"))
+            p.setPen(QPen(QColor("#c084fc"), 1.2))
+            p.setBrush(QBrush(eye_grad))
+            p.drawRoundedRect(
+                QRectF(cx - eye_w / 2.0, ey - eye_h / 2.0, eye_w, eye_h),
+                min(eye_w / 2.0, eye_h / 2.0),
+                min(eye_w / 2.0, eye_h / 2.0),
+            )
+            # Specular glow
+            if self.blink_val > 0.4:
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor("#ffffff"))
+                p.drawEllipse(QPointF(cx - 3.0, ey - eye_h / 3.0), 3.0, 3.0)
+
+        # 3. 8-Bar Colorful Audio Frequency Equalizer
+        bar_w = 6.0
+        gap = 3.0
+        start_x = -((8 * bar_w + 7 * gap) / 2.0)
+        base_y = 31.0
+        colors = [
+            QColor("#00f5d4"), QColor("#06b6d4"), QColor("#38bdf8"), QColor("#6366f1"),
+            QColor("#8b5cf6"), QColor("#a855f7"), QColor("#d946ef"), QColor("#ec4899")
+        ]
+        p.setPen(Qt.NoPen)
+        for i in range(8):
+            bh = max(2.5, self.audio_bars[i] * 16.0)
+            p.setBrush(colors[i])
+            p.drawRoundedRect(QRectF(start_x + i * (bar_w + gap), base_y - bh, bar_w, bh), 2.5, 2.5)
 
 
 def open_native_url(url: str):
@@ -2792,7 +3181,9 @@ class NeitoDesktopOverlay(QWidget):
 
     def _on_firmware_flashed(self, rom_title: str):
         clean_name = rom_title.replace("⚡", "").strip()
-        self._show_speech_bubble(f"Đã nạp xong firmware '{clean_name}' thành công! ESP32 ảo đã khởi động lại 🎉")
+        if hasattr(self, "mascot"):
+            self.mascot.set_firmware_style(clean_name)
+        self._show_speech_bubble(f"Đã nạp xong firmware '{clean_name}'! Giao diện mặt đã cập nhật theo ROM mới 🎉")
         if hasattr(self, "mascot") and hasattr(self.mascot, "mochi_player"):
             self.mascot.mochi_player.set_face("happy_2")
 
@@ -2852,6 +3243,9 @@ class NeitoDesktopOverlay(QWidget):
             scale = cfg.get("mascot", {}).get("scale", 1.0)
             self.speaker_enabled = bool(cfg.get("voice", {}).get("speaker_enabled", True))
             self.mascot.set_scale(scale)
+            esp_hw = cfg.get("esp32_hardware", {})
+            active_fw = esp_hw.get("active_firmware") or esp_hw.get("display_type", "")
+            self.mascot.set_firmware_style(active_fw)
             mochi_info = msg.get("mochi_status") or msg.get("mochi") or {}
             nvs = mochi_info.get("nvs", {})
             if isinstance(nvs, dict) and nvs:
@@ -2877,7 +3271,13 @@ class NeitoDesktopOverlay(QWidget):
             if isinstance(nvs, dict) and nvs:
                 self._apply_mochi_nvs(nvs)
 
-            if ev == "chronos_notification":
+            if ev == "firmware_flashed":
+                fw_id = msg.get("preset_id", "")
+                rom = msg.get("rom_title", "")
+                disp = msg.get("display_type", "")
+                self.mascot.set_firmware_style(fw_id or disp or rom)
+                self._show_speech_bubble(f"Đã cập nhật giao diện mặt theo {rom}! ✨")
+            elif ev == "chronos_notification":
                 self.mascot.mochi_player.show_phone_notification(
                     msg.get("app", "Phone"),
                     msg.get("title", ""),
