@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.brain.llm_router import brain_router
 from backend.core.chronos_ble_server import chronos_ble_server
 from backend.core.config import config_manager
+from backend.core.esp32_hardware_emulator import esp32_emulator
 from backend.core.mobile_companion_ui import MOBILE_COMPANION_HTML
 from backend.core.mochi_core_brain import mochi_core_brain
 from backend.core.protocol_engine import protocol_engine
@@ -26,7 +27,7 @@ from backend.voice.xiaozhi_ear import XiaozhiEarSession
 from backend.core.updater import update_engine, APP_VERSION
 
 app = FastAPI(
-    title="Neito-Agent Core Brain (The Mochi Firmware v4.3.2 + Xiaozhi v2 + Chronos BLE Bridge)",
+    title="Neito-Agent Core Brain (ESP32-S3-N16R8-CAM-BOX3 Hardware Emulator + Xiaozhi v2 + The Mochi + Chronos)",
     version="4.3.2",
 )
 
@@ -57,7 +58,7 @@ async def allow_private_network_access(request: Request, call_next):
 
 @app.on_event("startup")
 async def on_startup_init_chronos_ble():
-    """Starts the real Windows BLE GATT Peripheral Server (`6e400001-b5a3-f393-e0a9-e50e24dcca9e`) for the Chronos Phone App."""
+    """Starts the real Windows BLE GATT Peripheral Server (`6e400001-b5a3-f393-e0a9-e50e24dcca9e`) for the Chronos Phone App and syncs ESP32-S3 OTA."""
     loop = asyncio.get_running_loop()
 
     async def _on_ble_notification(app_name: str, title: str, message: str):
@@ -110,6 +111,7 @@ async def on_startup_init_chronos_ble():
     await chronos_ble_server.start()
     virtual_com_bridge.start(loop)
     cdp_serial_injector.start(loop)
+    asyncio.create_task(esp32_emulator.check_xiaozhi_ota())
 
 
 async def stream_tts_and_bubble(
@@ -582,6 +584,48 @@ async def api_apply_updater(payload: Dict[str, Any] = Body(default={})):
     return res
 
 
+# ============================================================================
+# ESP32-S3 ULTIMATE HARDWARE EMULATOR & XIAOZHI.ME CONSOLE / MCP ENDPOINTS
+# ============================================================================
+
+@app.get("/api/esp32/hardware")
+async def api_get_esp32_hardware():
+    """Returns the full ESP32-S3-N16R8-CAM-BOX3 Hardware Emulator manifest and built-in MCP tools."""
+    return {
+        "ok": True,
+        "hardware": esp32_emulator.get_hardware_manifest(),
+        "mcp_tools": esp32_emulator.get_mcp_tools_list(),
+    }
+
+
+@app.post("/api/esp32/xiaozhi-ota")
+async def api_esp32_xiaozhi_ota(payload: Dict[str, Any] = Body(default={})):
+    """
+    Contacts `https://api.tenclass.net/xiaozhi/ota/` to register the ESP32-S3 hardware emulator
+    and retrieve the 6-digit `activation_code` for `https://xiaozhi.me/console/agents`.
+    """
+    custom_url = payload.get("ota_url")
+    res = await esp32_emulator.check_xiaozhi_ota(custom_ota_url=custom_url)
+    return res
+
+
+@app.post("/api/esp32/yolo-mode")
+async def api_esp32_set_yolo_mode(payload: Dict[str, Any] = Body(...)):
+    """Switches the built-in ESP32-S3 Hardware YOLO Co-Processor mode (`off`, `eco_1fps`, `balanced_4fps`, `combat_10fps`, `auto_reflex`)."""
+    mode = payload.get("mode", "eco_1fps")
+    res = await esp32_emulator.set_yolo_hardware_mode(mode)
+    return res
+
+
+@app.post("/api/esp32/mcp/call")
+async def api_esp32_mcp_call(payload: Dict[str, Any] = Body(...)):
+    """Directly invokes a built-in ESP32-S3 Hardware MCP tool."""
+    tool_name = payload.get("name", "self.camera.take_photo")
+    arguments = payload.get("arguments") or {}
+    res = await esp32_emulator.execute_mcp_tool(tool_name, arguments)
+    return {"ok": True, "tool": tool_name, "result": res}
+
+
 @app.websocket("/ws/xiaozhi")
 async def xiaozhi_websocket_endpoint(ws: WebSocket):
     await ws.accept()
@@ -593,8 +637,9 @@ async def xiaozhi_websocket_endpoint(ws: WebSocket):
         await ws.send_json(pkt)
 
     mochi_core_brain.register_listener(forward_mochi_event)
+    esp32_emulator.register_listener(forward_mochi_event)
 
-    # 1. Send initial Xiaozhi v2 + Mochi Firmware Handshake
+    # 1. Send initial Xiaozhi v2 + Mochi Firmware + ESP32-S3 Hardware Handshake
     win = window_watcher.get_active_window()
     _, proto = protocol_engine.match_window_to_protocol(win.process_name, win.window_title)
     await ws.send_json(
@@ -604,6 +649,7 @@ async def xiaozhi_websocket_endpoint(ws: WebSocket):
             "protocol_version": "neito-mochi-v4.3.2",
             "config": config_manager.config.model_dump(),
             "mochi_status": mochi_core_brain.get_status_snapshot(),
+            "esp32_hardware": esp32_emulator.get_hardware_manifest(),
             "active_window": win.to_dict(),
             "active_protocol": proto,
             "telemetry": window_watcher.get_resource_telemetry(),
@@ -635,9 +681,11 @@ async def xiaozhi_websocket_endpoint(ws: WebSocket):
 
     async def autonomous_perception_loop():
         unknown_proc_streak: Dict[str, int] = {}
+        tick_count = 0
         while not stop_event.is_set():
             try:
                 await asyncio.sleep(1.0)
+                tick_count += 1
                 win_now = window_watcher.get_active_window()
                 changed, current_proto = protocol_engine.match_window_to_protocol(
                     win_now.process_name, win_now.window_title
@@ -662,6 +710,16 @@ async def xiaozhi_websocket_endpoint(ws: WebSocket):
                         protocol_engine.mark_process_synthesizing(p_key)
                         asyncio.create_task(
                             _auto_synthesize_unknown_app(win_now.process_name, win_now.window_title)
+                        )
+
+                # ESP32-S3 Built-in Hardware YOLO Co-processor periodic screen scan
+                hw_mode = esp32_emulator.yolo_hardware_mode
+                if hw_mode != "off":
+                    interval = 5 if hw_mode == "eco_1fps" else (2 if hw_mode == "balanced_4fps" else 1)
+                    if tick_count % interval == 0:
+                        await asyncio.to_thread(
+                            eye_engine.scan_screen_yolo11n,
+                            current_proto.get("yolo_classes"),
                         )
 
                 # Mochi Firmware `gifTask` autonomous expression cycling when idle
@@ -747,6 +805,7 @@ async def xiaozhi_websocket_endpoint(ws: WebSocket):
     finally:
         stop_event.set()
         mochi_core_brain.unregister_listener(forward_mochi_event)
+        esp32_emulator.unregister_listener(forward_mochi_event)
         perception_task.cancel()
 
 

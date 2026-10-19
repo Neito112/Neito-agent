@@ -80,14 +80,20 @@ PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
         "models": ["mochi-smart-v4 (Free)", "mochi-fast-v4 (Free)", "mochi-waifu-v4 (Free)"],
         "needs_key": False,
     },
+    "xiaozhi_cloud": {
+        "label": "Xiaozhi Console (xiaozhi.me/console/agents • MCP)",
+        "base_url": "wss://api.tenclass.net/xiaozhi/v1/",
+        "models": ["xiaozhi-console-agent", "xiaozhi-mcp-s3cam"],
+        "needs_key": False,
+    },
     "gemini": {
-        "label": "Google Gemini (Free Key • Khuyên dùng)",
+        "label": "Google Gemini (API Key • Khuyên dùng)",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
         "models": ["gemini-flash-lite-latest", "gemini-3.8-flash", "gemini-flash-latest"],
         "needs_key": True,
     },
     "groq": {
-        "label": "Groq LPU (Free Key • Siêu tốc)",
+        "label": "Groq LPU (API Key • Siêu tốc)",
         "base_url": "https://api.groq.com/openai/v1",
         "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen-2.5-32b"],
         "needs_key": True,
@@ -99,13 +105,13 @@ PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
         "needs_key": False,
     },
     "openai": {
-        "label": "OpenAI (ChatGPT)",
+        "label": "OpenAI (ChatGPT API Key)",
         "base_url": "https://api.openai.com/v1",
         "models": ["gpt-4o-mini", "gpt-4o", "o3-mini"],
         "needs_key": True,
     },
     "deepseek": {
-        "label": "DeepSeek",
+        "label": "DeepSeek (API Key)",
         "base_url": "https://api.deepseek.com/v1",
         "models": ["deepseek-chat", "deepseek-reasoner"],
         "needs_key": True,
@@ -813,14 +819,17 @@ def launch_thietlap_with_webserial_bridge(fallback_url: str = "http://127.0.0.1:
 
 class MobileBridgeDialog(DraggableFramelessWidget):
     """
-    Real Hardware BLE GATT Bridge (for Chronos Phone App) & Web-Serial Bridge
-    (for `https://themochi.huykhong.com/thietlap/`).
+    ESP32-S3 Ultimate Hardware Emulator Control Center:
+      - Tab 0: `ESP32-S3 & Xiaozhi` (`https://xiaozhi.me/console/agents` 6-digit binding + Screen-Camera + Built-in Hardware YOLO MCP)
+      - Tab 1: `Chronos BLE` (Real Windows BLE GATT Server for Chronos Phone App)
+      - Tab 2: `Web (/thietlap)` (Web-Serial Bridge for `https://themochi.huykhong.com/thietlap/`)
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(325)
+        self.setFixedWidth(345)
         self.mobile_url = f"{BACKEND_HTTP}/thietlap/"
+        self.activation_code = ""
 
         frame = QFrame(self)
         frame.setObjectName("mobileFrame")
@@ -836,7 +845,7 @@ class MobileBridgeDialog(DraggableFramelessWidget):
                 font-size: 11px;
                 font-weight: 600;
             }
-            QLineEdit, QSpinBox {
+            QLineEdit, QSpinBox, QComboBox {
                 background-color: rgba(20, 29, 49, 235);
                 border: 1px solid rgba(0, 245, 212, 95);
                 border-radius: 6px;
@@ -874,9 +883,9 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         lay.setSpacing(6)
 
         hdr = QHBoxLayout()
-        lbl = QLabel("📱 Cầu Nối Chronos BLE & Web (/thietlap)")
+        lbl = QLabel("🔌 Giả Lập Phần Cứng ESP32-S3 • Xiaozhi • Chronos")
         lbl.setCursor(Qt.SizeAllCursor)
-        lbl.setStyleSheet("font-size: 12px; font-weight: 800; color: #00f5d4;")
+        lbl.setStyleSheet("font-size: 11.5px; font-weight: 800; color: #00f5d4;")
         btn_x = QPushButton("✕")
         btn_x.setFixedSize(20, 20)
         btn_x.setStyleSheet("padding: 0; font-size: 11px;")
@@ -887,18 +896,102 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         lay.addLayout(hdr)
 
         tabs_bar = QHBoxLayout()
-        tabs_bar.setSpacing(4)
-        self.btn_tab_ble = QPushButton("📱 App Chronos (BLE)")
-        self.btn_tab_ble.setObjectName("tabBtnActive")
-        self.btn_tab_web = QPushButton("🌐 Web Thiết Lập (/thietlap)")
-        self.btn_tab_ble.clicked.connect(lambda: self._switch_tab(0))
-        self.btn_tab_web.clicked.connect(lambda: self._switch_tab(1))
+        tabs_bar.setSpacing(3)
+        self.btn_tab_esp32 = QPushButton("🤖 ESP32-S3 & Xiaozhi")
+        self.btn_tab_esp32.setObjectName("tabBtnActive")
+        self.btn_tab_ble = QPushButton("📱 Chronos BLE")
+        self.btn_tab_web = QPushButton("🌐 Web (/thietlap)")
+        self.btn_tab_esp32.clicked.connect(lambda: self._switch_tab(0))
+        self.btn_tab_ble.clicked.connect(lambda: self._switch_tab(1))
+        self.btn_tab_web.clicked.connect(lambda: self._switch_tab(2))
+        tabs_bar.addWidget(self.btn_tab_esp32)
         tabs_bar.addWidget(self.btn_tab_ble)
         tabs_bar.addWidget(self.btn_tab_web)
         lay.addLayout(tabs_bar)
 
         self.stack = QStackedWidget()
         lay.addWidget(self.stack)
+
+        # --- TAB 0: ESP32-S3 ULTIMATE HARDWARE EMULATOR & XIAOZHI.ME CONSOLE / YOLO MCP ---
+        page_esp = QWidget()
+        p0_lay = QVBoxLayout(page_esp)
+        p0_lay.setContentsMargins(0, 4, 0, 0)
+        p0_lay.setSpacing(5)
+
+        self.lbl_hw_spec = QLabel(
+            "🖥️ Board: ESP32-S3-N16R8-CAM-BOX3 (Dual-Core 240MHz • 16MB Flash • 8MB PSRAM)\n"
+            "📷 Cam Ảo: Nhìn Màn Hình PC (OV2640-ScreenCam) + Chip NPU YOLO11n MCP"
+        )
+        self.lbl_hw_spec.setStyleSheet(
+            "background: rgba(15,23,42,190); border: 1px solid rgba(56,189,248,0.35); "
+            "border-radius: 6px; padding: 5px; color: #38bdf8; font-size: 9.8px; font-weight: 700;"
+        )
+        p0_lay.addWidget(self.lbl_hw_spec)
+
+        code_box = QFrame()
+        code_box.setStyleSheet(
+            "background: rgba(16, 185, 129, 0.12); border: 1px solid #00f5d4; border-radius: 7px;"
+        )
+        cb_lay = QVBoxLayout(code_box)
+        cb_lay.setContentsMargins(6, 5, 6, 5)
+        cb_lay.setSpacing(3)
+
+        self.lbl_xiaozhi_code = QLabel("🔑 Mã kết nối xiaozhi.me: Đang lấy mã OTA...")
+        self.lbl_xiaozhi_code.setStyleSheet("color: #00f5d4; font-size: 12px; font-weight: 800;")
+        cb_lay.addWidget(self.lbl_xiaozhi_code)
+
+        self.lbl_xiaozhi_mac = QLabel("MAC: ec:da:3b:--:--:-- | Server: wss://api.tenclass.net/xiaozhi/v1/")
+        self.lbl_xiaozhi_mac.setStyleSheet("color: #94a3b8; font-size: 9.5px; font-weight: 600;")
+        cb_lay.addWidget(self.lbl_xiaozhi_mac)
+
+        code_btns = QHBoxLayout()
+        code_btns.setSpacing(4)
+        self.btn_open_xiaozhi = QPushButton("🌐 Mở xiaozhi.me/console/agents")
+        self.btn_open_xiaozhi.setStyleSheet(
+            "background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); "
+            "color: #050811; font-weight: 800; font-size: 10.5px; padding: 5px; border: none; border-radius: 6px;"
+        )
+        self.btn_open_xiaozhi.clicked.connect(lambda: open_native_url("https://xiaozhi.me/console/agents"))
+
+        self.btn_copy_code = QPushButton("📋 Copy Mã")
+        self.btn_copy_code.clicked.connect(self._copy_xiaozhi_code)
+
+        self.btn_refresh_ota = QPushButton("🔄 Lấy Mã")
+        self.btn_refresh_ota.clicked.connect(self._refresh_xiaozhi_ota)
+
+        code_btns.addWidget(self.btn_open_xiaozhi, 1)
+        code_btns.addWidget(self.btn_copy_code)
+        code_btns.addWidget(self.btn_refresh_ota)
+        cb_lay.addLayout(code_btns)
+        p0_lay.addWidget(code_box)
+
+        # Hardware Screen-YOLO MCP Mode Selector
+        yolo_row = QHBoxLayout()
+        lbl_ym = QLabel("👁️ Phần cứng NPU YOLO:")
+        lbl_ym.setStyleSheet("color: #e0f2fe; font-size: 10.5px; font-weight: 700;")
+        self.combo_yolo_hw = QComboBox()
+        self.combo_yolo_hw.addItem("⚡ Eco 1 FPS (Nhìn màn hình tiết kiệm)", "eco_1fps")
+        self.combo_yolo_hw.addItem("⚖️ Balanced 4 FPS (Cân bằng đa nhiệm)", "balanced_4fps")
+        self.combo_yolo_hw.addItem("🔥 Combat 10 FPS (Chơi game tốc độ cao)", "combat_10fps")
+        self.combo_yolo_hw.addItem("🧠 Auto-Reflex (Tự động phản xạ HUD)", "auto_reflex")
+        self.combo_yolo_hw.addItem("⏸️ Off (Tắt chip NPU YOLO)", "off")
+        self.combo_yolo_hw.currentIndexChanged.connect(self._on_yolo_hw_mode_changed)
+        yolo_row.addWidget(lbl_ym)
+        yolo_row.addWidget(self.combo_yolo_hw, 1)
+        p0_lay.addLayout(yolo_row)
+
+        self.lbl_mcp_list = QLabel(
+            "🧩 9 MCP Phần Cứng Tích Hợp Sẵn (Nạp tự động vào Xiaozhi & LLM Key):\n"
+            "• self.camera.take_photo (Chụp màn hình PC + gửi Vision & YOLO)\n"
+            "• self.yolo.scan_screen | self.yolo.set_mode | self.yolo.train_open_vocab\n"
+            "• self.protocol.create_or_update | self.screen.set_expression | self.audio.set_volume"
+        )
+        self.lbl_mcp_list.setStyleSheet(
+            "background: rgba(15,23,42,160); border-radius: 6px; padding: 5px; color: #cbd5e1; font-size: 9.3px;"
+        )
+        p0_lay.addWidget(self.lbl_mcp_list)
+
+        self.stack.addWidget(page_esp)
 
         # --- TAB 1: REAL WINDOWS BLE GATT SERVER FOR CHRONOS PHONE APP ---
         page_ble = QWidget()
@@ -1031,18 +1124,70 @@ class MobileBridgeDialog(DraggableFramelessWidget):
 
     def _switch_tab(self, idx: int):
         self.stack.setCurrentIndex(idx)
-        if idx == 0:
-            self.btn_tab_ble.setObjectName("tabBtnActive")
-            self.btn_tab_web.setObjectName("")
-        else:
-            self.btn_tab_ble.setObjectName("")
-            self.btn_tab_web.setObjectName("tabBtnActive")
-        self.btn_tab_ble.style().unpolish(self.btn_tab_ble)
-        self.btn_tab_ble.style().polish(self.btn_tab_ble)
-        self.btn_tab_web.style().unpolish(self.btn_tab_web)
-        self.btn_tab_web.style().polish(self.btn_tab_web)
+        for i, btn in enumerate((self.btn_tab_esp32, self.btn_tab_ble, self.btn_tab_web)):
+            btn.setObjectName("tabBtnActive" if i == idx else "")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+
+    def _copy_xiaozhi_code(self):
+        if self.activation_code:
+            QApplication.clipboard().setText(self.activation_code)
+            self.btn_copy_code.setText("✓ Đã Copy")
+            QTimer.singleShot(1500, lambda: self.btn_copy_code.setText("📋 Copy Mã"))
+
+    def _refresh_xiaozhi_ota(self):
+        self.btn_refresh_ota.setText("⏳...")
+        QApplication.processEvents()
+        try:
+            r = httpx.post(f"{BACKEND_HTTP}/api/esp32/xiaozhi-ota", json={}, timeout=6.0)
+            if r.status_code == 200:
+                d = r.json()
+                code = d.get("activation_code", "")
+                mac = d.get("mac_address", "")
+                self.activation_code = code
+                if code:
+                    self.lbl_xiaozhi_code.setText(f"🔑 Mã xác thực 6 số (xiaozhi.me): {code}")
+                else:
+                    self.lbl_xiaozhi_code.setText("🟢 Đã liên kết thành công trên xiaozhi.me/console/agents!")
+                if mac:
+                    self.lbl_xiaozhi_mac.setText(f"MAC: {mac} | Server: {d.get('ws_url', '')}")
+        except Exception:
+            pass
+        finally:
+            self.btn_refresh_ota.setText("🔄 Lấy Mã")
+
+    def _on_yolo_hw_mode_changed(self):
+        mode = self.combo_yolo_hw.currentData() or "eco_1fps"
+        try:
+            httpx.post(f"{BACKEND_HTTP}/api/esp32/yolo-mode", json={"mode": mode}, timeout=2.0)
+        except Exception:
+            pass
 
     def refresh_status(self):
+        try:
+            r_hw = httpx.get(f"{BACKEND_HTTP}/api/esp32/hardware", timeout=2.0)
+            if r_hw.status_code == 200:
+                hw = r_hw.json().get("hardware") or {}
+                conn = (hw.get("peripherals") or {}).get("connectivity") or {}
+                npu = (hw.get("peripherals") or {}).get("npu_coprocessor") or {}
+                code = conn.get("activation_code", "")
+                mac = hw.get("mac_address", "")
+                self.activation_code = code
+                if code:
+                    self.lbl_xiaozhi_code.setText(f"🔑 Mã xác thực 6 số (xiaozhi.me): {code}")
+                else:
+                    self._refresh_xiaozhi_ota()
+                if mac:
+                    self.lbl_xiaozhi_mac.setText(f"MAC: {mac} | Server: {conn.get('xiaozhi_ws_url', '')}")
+                ymode = npu.get("mode", "eco_1fps")
+                y_idx = self.combo_yolo_hw.findData(ymode)
+                if y_idx >= 0:
+                    self.combo_yolo_hw.blockSignals(True)
+                    self.combo_yolo_hw.setCurrentIndex(y_idx)
+                    self.combo_yolo_hw.blockSignals(False)
+        except Exception:
+            pass
+
         try:
             r = httpx.get(f"{BACKEND_HTTP}/api/mochi/chronos/config", timeout=1.5)
             if r.status_code == 200:
@@ -1352,9 +1497,9 @@ class MinimalSettingsPopover(DraggableFramelessWidget):
         self.btn_soul.setObjectName("soulBtn")
         self.btn_soul.clicked.connect(self._open_soul_dialog)
 
-        self.btn_mobile = QPushButton("📱 ĐT")
+        self.btn_mobile = QPushButton("🔌 ESP32")
         self.btn_mobile.setObjectName("mobileBtn")
-        self.btn_mobile.setToolTip("Kết nối App Điện Thoại (Chronos & The Mochi)")
+        self.btn_mobile.setToolTip("Giả lập Phần Cứng ESP32-S3 • xiaozhi.me/console/agents • Chronos BLE • Web /thietlap")
         self.btn_mobile.clicked.connect(self._open_mobile_dialog)
 
         toggles_row.addWidget(self.btn_eye)

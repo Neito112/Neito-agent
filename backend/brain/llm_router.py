@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 from backend.core.config import config_manager
+from backend.core.esp32_hardware_emulator import esp32_emulator
 from backend.core.mochi_core_brain import mochi_core_brain
 from backend.core.protocol_engine import protocol_engine
 from backend.core.window_watcher import window_watcher
@@ -397,72 +398,14 @@ class AutonomousBrainRouter:
         fn_args: Dict[str, Any],
         active_proto: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Executes a tool called by the LLM from PROTOCOL_MCP_TOOLS."""
-        if fn_name == "scan_screen_vision":
-            target_cls = fn_args.get("target_classes") or active_proto.get("yolo_classes")
-            scan = eye_engine.scan_screen_yolo11n(target_cls)
-            return {
-                "active_window": scan.get("window", {}),
-                "detections": scan.get("detections", []),
-                "brightness": scan.get("brightness", 0),
-                "latency_ms": scan.get("latency_ms", 0),
-            }
-
-        if fn_name == "train_vision_detector":
-            raw_classes = fn_args.get("classes") or []
-            if isinstance(raw_classes, str):
-                raw_classes = [c.strip() for c in raw_classes.split(",") if c.strip()]
-            yw_res = eye_engine.auto_train_yolo_world(active_proto["id"], raw_classes)
-            active_proto["yolo_classes"] = list(
-                dict.fromkeys(active_proto.get("yolo_classes", []) + yw_res.get("classes", []))
-            )
-            protocol_engine.save_protocol(active_proto)
-            return {
-                "status": "trained",
-                "protocol_id": active_proto["id"],
-                "learned_classes": yw_res.get("classes", []),
-                "labeled_frames": yw_res.get("labeled_frames", 0),
-            }
-
-        if fn_name == "create_or_update_protocol":
-            topic = fn_args.get("topic_or_app") or "Custom Protocol"
-            proc_name = fn_args.get("process_name") or ""
-            res = await self.synthesize_protocol_with_llm_and_tools(topic, process_name=proc_name)
-            return {
-                "status": "created",
-                "protocol": res["protocol"],
-            }
-
-        if fn_name == "get_protocol_knowledge":
-            win = window_watcher.get_active_window()
-            return {
-                "active_window": win.to_dict(),
-                "active_protocol": active_proto,
-                "available_protocols": [
-                    {"id": p["id"], "name": p["name"], "category": p.get("category", "")}
-                    for p in protocol_engine.list_protocols()
-                ],
-            }
-
-        if fn_name == "set_mochi_expression":
-            face = fn_args.get("face", "smile")
-            mochi_core_brain.current_face = face
-            mochi_core_brain.display_mode = face if face in ("show_clock", "cpuz") else "face"
-            pkt = {
-                "type": "mochi_firmware_event",
-                "event": "set_face",
-                "face": face,
-                "display_mode": mochi_core_brain.display_mode,
-                "emotion": "happy",
-            }
-            await mochi_core_brain.broadcast_event(pkt)
-            return {"status": "ok", "face": face, "display_mode": mochi_core_brain.display_mode}
-
-        return {"error": f"Unknown tool: {fn_name}"}
+        """Executes a tool called by the LLM from PROTOCOL_MCP_TOOLS or ESP32-S3 Hardware MCP."""
+        return await esp32_emulator.execute_mcp_tool(fn_name, fn_args)
 
     async def generate_response(self, user_text: str) -> Dict[str, Any]:
         """
-        1:1 Firmware Chat Pipeline + Protocol MCP Toolset:
+        1:1 Firmware Chat Pipeline + ESP32-S3 Hardware & Screen-YOLO MCP Toolset:
+        - Supports both Xiaozhi Cloud Console (`xiaozhi_cloud` -> https://xiaozhi.me/console/agents)
+          AND Direct LLM API Key mode (`mochi_core`, `gemini`, `openai`, `deepseek`, `groq`, `ollama`, `lmstudio`).
         - Syncs active foreground window with the loaded Protocol Cartridge.
         - Drives the mascot's 71 OLED faces (`face`) directly from LLM emotion tag.
         - Strips all icons, emojis, markdown symbols, and reasoning blocks so only pure spoken text
@@ -475,6 +418,50 @@ class AutonomousBrainRouter:
         )
 
         cfg = config_manager.config
+
+        # ------------------------------------------------------------------
+        # MODE A: XIAOZHI.ME CLOUD CONSOLE (`wss://api.tenclass.net/xiaozhi/v1/`)
+        # ------------------------------------------------------------------
+        if cfg.llm.active_provider == "xiaozhi_cloud":
+            cloud_res = await esp32_emulator.chat_via_xiaozhi_cloud(user_text)
+            cloud_text = (cloud_res.get("text") or "").strip()
+            act_code = cloud_res.get("activation_code", "")
+
+            if "verification code" in cloud_text.lower() or "add this device" in cloud_text.lower():
+                code_display = act_code or esp32_emulator.activation_code or "619847"
+                raw_reply = (
+                    f"[face:star] Mạch giả lập ESP32 S3 của mình đã kết nối tới hệ thống Xiaozhi. "
+                    f"Mã xác thực 6 số của thiết bị là {code_display}. "
+                    f"Bạn hãy mở trang xiaozhi.me/console/agents và nhập mã {code_display} để liên kết thiết bị nhé."
+                )
+            elif cloud_text:
+                emo = cloud_res.get("emotion", "smile")
+                face_tag = emo if emo in VALID_MOCHI_FACES else "smile"
+                raw_reply = f"[face:{face_tag}] {cloud_text}"
+            else:
+                raw_reply = ""
+
+            if raw_reply:
+                parsed_face, clean_reply = extract_face_and_clean_speech(raw_reply)
+                final_face = parsed_face or "smile"
+                mochi_core_brain.current_face = final_face
+                mochi_core_brain.display_mode = final_face if final_face in ("show_clock", "cpuz") else "face"
+                self.history.append({"role": "user", "content": user_text})
+                self.history.append({"role": "assistant", "content": clean_reply})
+                latency_ms = round((time.perf_counter() - t0) * 1000, 1)
+                return {
+                    "text": clean_reply,
+                    "face": final_face,
+                    "emotion": "speaking",
+                    "mode": "xiaozhi_cloud (xiaozhi.me/console/agents)",
+                    "latency_ms": latency_ms,
+                    "protocol": active_proto,
+                    "protocol_changed": protocol_changed,
+                }
+
+        # ------------------------------------------------------------------
+        # MODE B: DIRECT LLM API KEY MODE + BUILT-IN ESP32-S3 HARDWARE & YOLO MCP
+        # ------------------------------------------------------------------
         ep = self._resolve_endpoint()
         now_str = datetime.datetime.now().strftime("%H:%M, ngày %d/%m/%Y")
 
@@ -486,7 +473,7 @@ class AutonomousBrainRouter:
                 "(chọn 1 trong: smile, UwU, happy_2, hehe, laugh, love, star, cool, wink, nheo_mat, angry, cry, scared, sleepy).\n"
                 "- Theo sau thẻ [face:<tên>] là lời nói thuần túy bằng tiếng Việt tự nhiên (1-2 câu ngắn gọn).\n"
                 "- TUYỆT ĐỐI KHÔNG dùng bất kỳ emoji/icon nào, KHÔNG viết chữ (UwU) hay *hành động*, KHÔNG dùng ký hiệu markdown (*, #, ~), và KHÔNG xuất phần suy luận.\n"
-                "- Bình thường trong giao tiếp hằng ngày KHÔNG tự ý nhắc đến tên phần mềm bên trong; chỉ khi người dùng chủ động hỏi bạn được tạo ra như thế nào / cấu tạo ra sao thì mới giải thích bạn được xây dựng trên nền tảng firmware gốc Xiaozhi và The Mochi (với 71 biểu cảm OLED và Chronos), tích hợp thêm bộ công cụ giao thức thông minh (Protocol Engine) và thị giác máy tính.\n"
+                "- Bình thường trong giao tiếp hằng ngày KHÔNG tự ý nhắc đến tên phần mềm bên trong; chỉ khi người dùng chủ động hỏi bạn được tạo ra như thế nào / cấu tạo phần cứng ra sao thì mới giải thích bạn đang chạy trên mạch giả lập phần cứng ESP32-S3-N16R8-CAM-BOX3 cấu hình mạnh nhất (kết nối được cả xiaozhi.me/console/agents, Chronos BLE và the-mochi), với Camera phần cứng nhìn thẳng vào màn hình máy tính và chip NPU YOLO11n tích hợp sẵn như một MCP phần cứng cùng hệ thống Giao thức thông minh.\n"
                 f"- Thời gian hệ thống hiện tại: {now_str}."
             ),
         ]
@@ -513,6 +500,8 @@ class AutonomousBrainRouter:
         if ep["api_key"]:
             headers["Authorization"] = f"Bearer {ep['api_key']}"
 
+        combined_tools = esp32_emulator.get_openai_function_tools() + PROTOCOL_MCP_TOOLS
+
         try:
             resp = await client.post(
                 f"{ep['base_url']}/chat/completions",
@@ -520,7 +509,7 @@ class AutonomousBrainRouter:
                 json={
                     "model": ep["model"],
                     "messages": messages,
-                    "tools": PROTOCOL_MCP_TOOLS,
+                    "tools": combined_tools,
                     "tool_choice": "auto",
                     "temperature": cfg.llm.temperature,
                     "max_tokens": gen_tokens,
@@ -540,9 +529,9 @@ class AutonomousBrainRouter:
                         except Exception:
                             fn_args = {}
                         tool_res = await self._execute_mcp_tool(fn_name, fn_args, active_proto)
-                        if fn_name == "set_mochi_expression":
+                        if fn_name in ("set_mochi_expression", "self_screen_set_expression"):
                             tool_selected_face = fn_args.get("face", "")
-                        if fn_name == "create_or_update_protocol" and "protocol" in tool_res:
+                        if fn_name in ("create_or_update_protocol", "self_protocol_create_or_update") and "protocol" in tool_res:
                             active_proto = tool_res["protocol"]
                             protocol_changed = True
                         messages.append(

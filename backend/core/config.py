@@ -30,6 +30,12 @@ class LLMProviderConfig(BaseModel):
                 "default_model": "mochi-smart-v4 (Free)",
                 "models": ["mochi-smart-v4 (Free)", "mochi-fast-v4 (Free)", "mochi-waifu-v4 (Free)"],
             },
+            "xiaozhi_cloud": {
+                "name": "Xiaozhi Console (xiaozhi.me/console/agents • ESP32-S3 MCP)",
+                "base_url": "wss://api.tenclass.net/xiaozhi/v1/",
+                "default_model": "xiaozhi-console-agent",
+                "models": ["xiaozhi-console-agent", "xiaozhi-mcp-s3cam"],
+            },
             "ollama": {
                 "name": "Ollama (Local)",
                 "base_url": "http://localhost:11434/v1",

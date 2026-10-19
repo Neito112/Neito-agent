@@ -35,3 +35,8 @@ Desktop.ini
 
 # Node (desktop legacy)
 desktop/node_modules/
+
+# Local YOLO weights, datasets & runtime hardware state
+*.pt
+esp32_hardware_state.json
+backend/datasets/
