@@ -44,7 +44,13 @@
 
       this.writable = new WritableStream({
         async write(chunk) {
-          const text = self._decoder.decode(chunk, { stream: true });
+          if (!chunk) return;
+          const u8 = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+          if (self._ws && self._ws.readyState === WebSocket.OPEN) {
+            self._ws.send(u8);
+            return;
+          }
+          const text = self._decoder.decode(u8, { stream: true });
           self._writeBuffer += text;
           const lines = self._writeBuffer.split("\n");
           self._writeBuffer = lines.pop() || "";
@@ -60,9 +66,37 @@
 
     getInfo() {
       return {
-        usbVendorId: 0x303a,
-        usbProductId: 0x1001,
+        usbVendorId: 0x303a, // Espressif Systems
+        usbProductId: 0x1001, // ESP32-S3 / ESP32-C3 USB Serial/JTAG
+        manufacturer: "Espressif Systems",
+        product: "ESP32-S3 (USB-JTAG/Serial)",
+        serialNumber: "ECDA3BA17E52",
       };
+    }
+
+    async setSignals(signals) {
+      // Standard Web-Serial DTR/RTS signal control for ESP32 reset/boot
+      return;
+    }
+
+    async getSignals() {
+      return {
+        clearToSend: true,
+        dataCarrierDetect: true,
+        dataSetReady: true,
+        ringIndicator: false,
+      };
+    }
+
+    _enqueueReplyData(data) {
+      if (!this._readController || !data) return;
+      if (data instanceof Uint8Array) {
+        this._readController.enqueue(data);
+      } else if (data instanceof ArrayBuffer) {
+        this._readController.enqueue(new Uint8Array(data));
+      } else if (typeof data === "string") {
+        this._readController.enqueue(this._encoder.encode(data));
+      }
     }
 
     _enqueueReplyLines(lines) {
@@ -102,16 +136,19 @@
       try {
         await new Promise((resolve) => {
           const ws = new WebSocket(WS_URL);
+          ws.binaryType = "arraybuffer";
           const timer = setTimeout(() => {
             resolve();
-          }, 800);
+          }, 1000);
           ws.onopen = () => {
             clearTimeout(timer);
             this._ws = ws;
             resolve();
           };
           ws.onmessage = (ev) => {
-            if (typeof ev.data === "string") {
+            if (ev.data instanceof ArrayBuffer) {
+              this._enqueueReplyData(ev.data);
+            } else if (typeof ev.data === "string") {
               const lines = ev.data
                 .split("\n")
                 .map((s) => s.trim())
@@ -157,7 +194,7 @@
     ];
   }
 
-  async function showSerialPortChooserModal() {
+  async function showSerialPortChooserModal(filters) {
     const sysPorts = await fetchOtherSystemPorts();
     return new Promise((resolve, reject) => {
       const existing = document.getElementById("mochi-webserial-chooser");
@@ -170,7 +207,7 @@
 
       const dialog = document.createElement("div");
       dialog.style.cssText =
-        "background:#1f1f1f;color:#e3e3e3;width:392px;max-width:94vw;border-radius:10px;box-shadow:0 10px 32px rgba(0,0,0,0.75);border:1px solid #3c4043;overflow:hidden;font-size:13px;padding:18px 18px 14px;";
+        "background:#1f1f1f;color:#e3e3e3;width:420px;max-width:94vw;border-radius:10px;box-shadow:0 10px 32px rgba(0,0,0,0.75);border:1px solid #3c4043;overflow:hidden;font-size:13px;padding:18px 18px 14px;";
 
       const otherItemsHtml = sysPorts
         .filter((p) => !String(p).includes("COM9") && !String(p).includes("COM10"))
@@ -184,12 +221,15 @@
 
       dialog.innerHTML = `
         <div style="font-weight:500;font-size:15px;color:#e3e3e3;line-height:1.4;margin-bottom:12px;">
-          ${window.location.hostname || "themochi.huykhong.com"} muốn kết nối với một cổng nối tiếp
+          ${window.location.hostname || "Trang web"} muốn kết nối với một cổng nối tiếp
         </div>
         <div id="mochi-chooser-list" style="border:1px solid #5f6368;border-radius:3px;height:252px;overflow-y:auto;background:#1f1f1f;padding:4px 0;">
           <div class="mochi-chooser-row selected" data-type="virtual" style="padding:9px 12px;background:#35363a;color:#8ab4f8;font-weight:600;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:space-between;">
-            <span>THE MOCHI - Neito Agent (COM9)</span>
-            <span style="font-size:11px;background:#1e8e3e;color:#fff;padding:1px 7px;border-radius:8px;font-weight:600;">Cổng Ảo Sẵn Sàng</span>
+            <div>
+              <div style="color:#8ab4f8;font-weight:600;">ESP32-S3 / The Mochi (COM9 - USB-JTAG/Serial)</div>
+              <div style="font-size:11px;color:#9aa0a6;">Espressif Systems (VID: 0x303A, PID: 0x1001)</div>
+            </div>
+            <span style="font-size:11px;background:#1e8e3e;color:#fff;padding:2px 8px;border-radius:8px;font-weight:600;">ESP32 USB Sẵn Sàng</span>
           </div>
           ${otherItemsHtml}
         </div>
@@ -265,8 +305,8 @@
   }
 
   const serialBridge = {
-    requestPort: async function () {
-      return await showSerialPortChooserModal();
+    requestPort: async function (options) {
+      return await showSerialPortChooserModal(options ? options.filters : null);
     },
     getPorts: async function () {
       return [new VirtualESP32SerialPort()];

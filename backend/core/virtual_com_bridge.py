@@ -40,6 +40,8 @@ try:
 except ImportError:
     HAS_PYSERIAL = False
 
+from backend.core.esp32_bootloader_emulator import ESP32UnifiedSerialRouter
+
 
 def _get_project_root() -> Path:
     if getattr(sys, "frozen", False):
@@ -188,17 +190,15 @@ class VirtualCOMPortBridge:
                 self.active_serial = ser
                 self.is_listening = True
 
-                buf = ""
+                router = ESP32UnifiedSerialRouter()
                 while not self._stop_event.is_set() and ser.is_open:
                     raw = ser.read(512)
                     if raw:
-                        buf += raw.decode("utf-8", errors="ignore")
-                        lines = buf.split("\n")
-                        buf = lines.pop() or ""
-                        for raw_line in lines:
-                            cmd = raw_line.strip()
-                            if not cmd:
-                                continue
+                        bin_replies, text_cmds = router.process_incoming_chunk(raw)
+                        for b in bin_replies:
+                            ser.write(b)
+                            ser.flush()
+                        for cmd in text_cmds:
                             replies = mochi_core_brain.execute_serial_command(cmd)
                             if replies:
                                 payload = ("\n".join(replies) + "\n").encode("utf-8")
@@ -297,9 +297,7 @@ class CDPWebSerialInjector:
                         url = t.get("url", "")
                         ws_url = t.get("webSocketDebuggerUrl")
                         tid = t.get("id", "")
-                        if not ws_url:
-                            continue
-                        if any(k in url for k in ("themochi.huykhong.com", "127.0.0.1:8765", "about:blank")):
+                        if url.startswith("http://") or url.startswith("https://") or url == "about:blank":
                             ok = await self.inject_into_target(ws_url, script)
                             if ok:
                                 self._injected_targets.add(tid)

@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.brain.llm_router import brain_router
 from backend.core.chronos_ble_server import chronos_ble_server
 from backend.core.config import config_manager
+from backend.core.esp32_bootloader_emulator import ESP32UnifiedSerialRouter
 from backend.core.esp32_hardware_emulator import esp32_emulator
 from backend.core.mobile_companion_ui import MOBILE_COMPANION_HTML
 from backend.core.mochi_core_brain import mochi_core_brain
@@ -373,15 +374,45 @@ async def api_mochi_serial(payload: Dict[str, Any] = Body(...)):
 
 @app.websocket("/ws/mochi-serial")
 async def ws_mochi_serial_bridge(ws: WebSocket):
-    """WebSocket stream emulating 115200-baud UART serial for https://themochi.huykhong.com/thietlap/."""
+    """
+    WebSocket stream emulating both 115200-baud UART serial (for /thietlap NVS config)
+    and binary esptool SLIP protocol (for web firmware flashers: themochi, esptool-js, esphome, adafruit).
+    """
     await ws.accept()
+    router = ESP32UnifiedSerialRouter()
+
+    def _on_flash_done(data: bytes):
+        try:
+            if len(data) > 0x10000:
+                p = BASE_DIR / "flashed_firmware.bin"
+                p.write_bytes(data)
+                from backend.vision.mochi_esp32_client import MochiESP32Client
+
+                c = MochiESP32Client()
+                c.extract_all_faces(export_gifs=True, download_web_previews=True)
+        except Exception:
+            pass
+
+    router.bootloader.on_flash_completed_callback = _on_flash_done
+
     try:
         while True:
-            raw = await ws.receive_text()
-            for line in raw.splitlines():
-                cmd = line.strip()
-                if not cmd:
-                    continue
+            msg = await ws.receive()
+            raw_bytes = msg.get("bytes")
+            raw_text = msg.get("text")
+
+            chunk = raw_bytes if raw_bytes is not None else (raw_text.encode("utf-8") if raw_text else b"")
+            if not chunk:
+                continue
+
+            bin_replies, text_cmds = router.process_incoming_chunk(chunk)
+
+            # Send back binary SLIP responses to web flasher
+            for b in bin_replies:
+                await ws.send_bytes(b)
+
+            # Process ASCII text commands for NVS settings
+            for cmd in text_cmds:
                 replies = mochi_core_brain.execute_serial_command(cmd)
                 if replies:
                     await ws.send_text("\n".join(replies) + "\n")
@@ -495,22 +526,26 @@ async def api_install_virtual_com():
 
 
 @app.get("/api/mochi/bridge-launch", response_class=HTMLResponse)
-async def api_mochi_bridge_launch():
+async def api_mochi_bridge_launch(url: str = "https://themochi.huykhong.com/thietlap/"):
     """
-    Pre-flight launch page for Chrome 155+: registers `Page.addScriptToEvaluateOnNewDocument`
-    via CDP on the active tab BEFORE redirecting to `https://themochi.huykhong.com/thietlap/`,
-    so `navigator.serial.requestPort()` displays `THE MOCHI - Neito Agent (COM9)` immediately.
+    Pre-flight launch page for Chrome/Edge: registers `Page.addScriptToEvaluateOnNewDocument`
+    via CDP on the active tab BEFORE redirecting to any firmware flasher or setup URL,
+    so `navigator.serial.requestPort()` displays `ESP32-S3 (COM9 - USB-JTAG/Serial)` immediately.
     """
     await cdp_serial_injector.inject_all_now()
-    html = """<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Đang kết nối cầu nối THE MOCHI ESP32-C3 (COM9)...</title>
-<style>body{background:#0b101c;color:#00f5d4;font-family:'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-weight:700;}</style>
+    clean_target = url.strip()
+    if not clean_target.startswith("http://") and not clean_target.startswith("https://"):
+        clean_target = "https://themochi.huykhong.com/thietlap/"
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Đang kết nối cổng ESP32 USB (COM9)...</title>
+<style>body{{background:#0b101c;color:#00f5d4;font-family:'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-weight:700;flex-direction:column;gap:12px;}}</style>
 </head><body>
-<div>⚡ Đang nạp tín hiệu cầu nối THE MOCHI - Neito Agent (COM9)...</div>
+<div style="font-size:18px;">⚡ Đang kết nối thiết bị ảo ESP32 USB (COM9)...</div>
+<div style="font-size:13px;color:#94a3b8;">Đang chuyển hướng tới: {clean_target}</div>
 <script>
-setTimeout(function() {
-  window.location.replace("https://themochi.huykhong.com/thietlap/");
-}, 250);
+setTimeout(function() {{
+  window.location.replace({json.dumps(clean_target)});
+}}, 250);
 </script>
 </body></html>"""
     return HTMLResponse(content=html)

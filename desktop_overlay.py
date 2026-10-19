@@ -376,6 +376,9 @@ class MascotCanvasWidget(QWidget):
         act_chat = menu.addAction("💬 Mở ô chat")
         act_settings = menu.addAction("⚙️ Cài đặt")
         menu.addSeparator()
+        act_flasher = menu.addAction("⚡ Mở Web Nạp Firmware (ESP32 USB)")
+        act_thietlap = menu.addAction("🌐 Mở Cài Đặt (/thietlap)")
+        menu.addSeparator()
         act_hide = menu.addAction("👁️ Ẩn vào Khay Hệ Thống")
         menu.addSeparator()
         act_quit = menu.addAction("🛑 Thoát Hoàn Toàn (Quit)")
@@ -385,6 +388,10 @@ class MascotCanvasWidget(QWidget):
             parent._toggle_chat_input()
         elif chosen == act_settings and parent and hasattr(parent, "_toggle_settings"):
             parent._toggle_settings()
+        elif chosen == act_flasher:
+            launch_esp32_web_bridge("https://themochi.huykhong.com/")
+        elif chosen == act_thietlap:
+            launch_esp32_web_bridge("https://themochi.huykhong.com/thietlap/")
         elif chosen == act_hide and parent:
             parent.hide()
             if hasattr(parent, "settings_popover"):
@@ -772,15 +779,16 @@ class SoulProfileDialog(DraggableFramelessWidget):
             self.btn_save.setText("Lỗi")
 
 
-def launch_thietlap_with_webserial_bridge(fallback_url: str = "http://127.0.0.1:8765/thietlap/"):
+def launch_esp32_web_bridge(target_url: str = "https://themochi.huykhong.com/thietlap/", background_warmup: bool = False):
     """
-    Launches `https://themochi.huykhong.com/thietlap/` in Chrome/Edge with CDP
-    (`--remote-debugging-port=19225`) via `http://127.0.0.1:8765/api/mochi/bridge-launch`
-    so `navigator.serial.requestPort()` displays `THE MOCHI - Neito Agent (COM9)`
-    at the top of the scan list on Chrome 137..155+.
+    Launches Chrome/Edge with the ESP32 USB Web-Serial Bridge enabled via CDP
+    (`--remote-debugging-port=19225`), redirecting to target_url (or warming up in background).
+    Any web flasher (themochi, esptool-js, esphome, adafruit) automatically sees:
+    `ESP32-S3 / The Mochi (COM9 - USB-JTAG/Serial)` with USB VID 0x303A & PID 0x1001.
     """
     import shutil
     import subprocess
+    import urllib.parse
 
     profile_dir = Path(os.environ.get("LOCALAPPDATA", str(_resolve_app_dir()))) / "NeitoMochiBridgeProfile"
     profile_dir.mkdir(parents=True, exist_ok=True)
@@ -795,26 +803,36 @@ def launch_thietlap_with_webserial_bridge(fallback_url: str = "http://127.0.0.1:
     ]
     browser_exe = next((c for c in candidates if c and Path(c).exists()), None)
 
+    encoded_url = urllib.parse.quote(target_url)
+    bridge_launch_url = f"http://127.0.0.1:8765/api/mochi/bridge-launch?url={encoded_url}"
+
     if browser_exe:
         try:
-            subprocess.Popen(
-                [
-                    str(browser_exe),
-                    f"--user-data-dir={profile_dir}",
-                    "--remote-debugging-port=19225",
-                    "--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessRespectPreflightResults",
-                    "--no-first-run",
-                    "--no-default-browser-check",
-                    "http://127.0.0.1:8765/api/mochi/bridge-launch",
-                ],
-                close_fds=True,
-            )
+            args = [
+                str(browser_exe),
+                f"--user-data-dir={profile_dir}",
+                "--remote-debugging-port=19225",
+                "--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessRespectPreflightResults",
+                "--no-first-run",
+                "--no-default-browser-check",
+            ]
+            if background_warmup:
+                args.extend(["--no-startup-window", "about:blank"])
+            else:
+                args.append(bridge_launch_url)
+
+            subprocess.Popen(args, close_fds=True)
             return True
         except Exception:
             pass
 
-    open_native_url(fallback_url)
+    if not background_warmup:
+        open_native_url(target_url)
     return False
+
+
+# Backward compatibility alias
+launch_thietlap_with_webserial_bridge = launch_esp32_web_bridge
 
 
 class MobileBridgeDialog(DraggableFramelessWidget):
@@ -1067,19 +1085,50 @@ class MobileBridgeDialog(DraggableFramelessWidget):
 
         self.stack.addWidget(page_ble)
 
-        # --- TAB 2: WEB SERIAL BRIDGE FOR https://themochi.huykhong.com/thietlap/ ---
+        # --- TAB 2: UNIVERSAL WEB FIRMWARE FLASHER & SERIAL BRIDGE ---
         page_web = QWidget()
         p2_lay = QVBoxLayout(page_web)
         p2_lay.setContentsMargins(0, 4, 0, 0)
         p2_lay.setSpacing(5)
 
-        self.btn_connect_web = QPushButton("⚡ MỞ THEMOCHI.HUYKHONG.COM/THIETLAP (HIỆN CỔNG COM9)")
-        self.btn_connect_web.setStyleSheet(
-            "background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); "
-            "color: #050811; font-weight: 800; font-size: 10.5px; padding: 7px; border: none; border-radius: 7px;"
+        # USB Hardware Status Card
+        usb_card = QFrame()
+        usb_card.setStyleSheet(
+            "background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; border-radius: 7px; padding: 4px;"
         )
+        uc_lay = QVBoxLayout(usb_card)
+        uc_lay.setContentsMargins(6, 4, 6, 4)
+        uc_lay.setSpacing(2)
+        lbl_usb_h = QLabel("🔌 Tín Hiệu USB ESP32-S3 Đang Hoạt Động:")
+        lbl_usb_h.setStyleSheet("color: #00f5d4; font-size: 10.5px; font-weight: 800;")
+        lbl_usb_spec = QLabel("Cổng: COM9 | VID: 0x303A | PID: 0x1001 (ESP32-S3 USB Serial/JTAG)")
+        lbl_usb_spec.setStyleSheet("color: #cbd5e1; font-size: 9.3px; font-weight: 600;")
+        self.lbl_web_status = QLabel("🟢 Sẵn sàng kết nối mọi Web Nạp Firmware & Tool Cài Đặt!")
+        self.lbl_web_status.setStyleSheet("color: #10b981; font-size: 9.6px; font-weight: 700;")
+        uc_lay.addWidget(lbl_usb_h)
+        uc_lay.addWidget(lbl_usb_spec)
+        uc_lay.addWidget(self.lbl_web_status)
+        p2_lay.addWidget(usb_card)
+
+        # Main Flasher / Setup Buttons
+        self.btn_open_flasher_mochi = QPushButton("⚡ MỞ WEB NẠP FIRMWARE MOCHI (CÓ CỔNG COM9)")
+        self.btn_open_flasher_mochi.setStyleSheet(
+            "background: linear-gradient(135deg, #00f5d4 0%, #0284c7 100%); "
+            "color: #050811; font-weight: 800; font-size: 10.5px; padding: 6px; border: none; border-radius: 6px;"
+        )
+        self.btn_open_flasher_mochi.clicked.connect(lambda: launch_esp32_web_bridge("https://themochi.huykhong.com/"))
+        p2_lay.addWidget(self.btn_open_flasher_mochi)
+
+        row_flasher_links = QHBoxLayout()
+        row_flasher_links.setSpacing(4)
+        self.btn_connect_web = QPushButton("🌐 Cài Đặt (/thietlap)")
         self.btn_connect_web.clicked.connect(self._connect_web_controller)
-        p2_lay.addWidget(self.btn_connect_web)
+        self.btn_flasher_universal = QPushButton("🛠️ Web Nạp ESP32 Chuẩn")
+        self.btn_flasher_universal.setToolTip("Mở esptool-js / esphome web flasher với cổng USB ESP32-S3 ảo")
+        self.btn_flasher_universal.clicked.connect(lambda: launch_esp32_web_bridge("https://espressif.github.io/esptool-js/"))
+        row_flasher_links.addWidget(self.btn_connect_web, 1)
+        row_flasher_links.addWidget(self.btn_flasher_universal, 1)
+        p2_lay.addLayout(row_flasher_links)
 
         self.btn_install_vcom = QPushButton("🔌 Cài Driver Cổng COM9 Ảo Vào Windows (Mọi Trình Duyệt)")
         self.btn_install_vcom.setToolTip(
@@ -1091,10 +1140,6 @@ class MobileBridgeDialog(DraggableFramelessWidget):
         self.btn_open_local_thietlap = QPushButton("🌐 Mở Bản Cầu Nối Trực Tiếp (127.0.0.1:8765/thietlap)")
         self.btn_open_local_thietlap.clicked.connect(lambda: open_native_url("http://127.0.0.1:8765/thietlap/"))
         p2_lay.addWidget(self.btn_open_local_thietlap)
-
-        self.lbl_web_status = QLabel("● Đã tạo tín hiệu cổng COM9 (THE MOCHI - Neito Agent)")
-        self.lbl_web_status.setStyleSheet("color: #10b981; font-size: 10px; font-weight: 700;")
-        p2_lay.addWidget(self.lbl_web_status)
 
         lbl_qr_title = QLabel("Hoặc quét QR để mở trang /thietlap trên ĐT:")
         lbl_qr_title.setStyleSheet("color: #94a3b8; font-size: 10px; font-weight: 700;")
@@ -1880,6 +1925,9 @@ class NeitoDesktopOverlay(QWidget):
         self._setup_system_tray()
         self._start_ws_thread()
         self._start_mic_listener_thread()
+        # Tự động kích hoạt cầu nối USB ESP32-S3 ảo ngay khi mở app
+        # Giúp máy tính và mọi trình duyệt web nhận diện ngay lập tức mạch ESP32 cắm qua USB
+        QTimer.singleShot(1800, lambda: launch_esp32_web_bridge(background_warmup=True))
         QTimer.singleShot(5000, lambda: self.settings_popover._check_for_updates(silent=True))
 
     def _on_settings_saved(self, patch: Dict[str, Any]):
@@ -2408,6 +2456,14 @@ class NeitoDesktopOverlay(QWidget):
 
         act_phone = tray_menu.addAction("📱 App Điện Thoại (QR)")
         act_phone.triggered.connect(self._open_mobile_companion)
+
+        tray_menu.addSeparator()
+
+        act_flasher = tray_menu.addAction("⚡ Mở Web Nạp Firmware (ESP32 USB)")
+        act_flasher.triggered.connect(lambda: launch_esp32_web_bridge("https://themochi.huykhong.com/"))
+
+        act_thietlap = tray_menu.addAction("🌐 Mở Cài Đặt (/thietlap)")
+        act_thietlap.triggered.connect(lambda: launch_esp32_web_bridge("https://themochi.huykhong.com/thietlap/"))
 
         tray_menu.addSeparator()
 
