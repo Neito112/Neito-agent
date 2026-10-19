@@ -2175,7 +2175,7 @@ class NeitoDesktopOverlay(QWidget):
             scale = cfg.get("mascot", {}).get("scale", 1.0)
             self.speaker_enabled = bool(cfg.get("voice", {}).get("speaker_enabled", True))
             self.mascot.set_scale(scale)
-            mochi_info = msg.get("mochi", {})
+            mochi_info = msg.get("mochi_status") or msg.get("mochi") or {}
             nvs = mochi_info.get("nvs", {})
             if isinstance(nvs, dict) and nvs:
                 self._apply_mochi_nvs(nvs)
@@ -2218,10 +2218,14 @@ class NeitoDesktopOverlay(QWidget):
                 self.mascot.mochi_player.toggle_clock_mode(8.0)
             elif dmode == "cpuz" or face == "cpuz":
                 self.mascot.mochi_player.set_face("cpuz", loop=False)
+            elif ev == "serial_config_sync":
+                if face:
+                    self.mascot.mochi_player.set_default_face(face)
+                    self.mascot.set_mochi_face(face, loop=True)
             elif face:
                 self.mascot.set_mochi_face(face, loop=(ev in ("serial_default_changed", "serial_reset")))
+                self.mascot.set_emotion(emo)
 
-            self.mascot.set_emotion(emo)
             if text:
                 self._show_speech_bubble(text)
                 self.bubble_hide_timer.start(5500)
@@ -2258,9 +2262,9 @@ class NeitoDesktopOverlay(QWidget):
                 player.set_speed_pct(int(nvs["gif_speed"]))
             except Exception:
                 pass
-        if "gif_negative" in nvs:
-            val = str(nvs["gif_negative"]).lower()
-            player.set_inverted(val in ("true", "1", "yes"))
+        if "isInverted" in nvs or "gif_negative" in nvs:
+            raw_inv = nvs.get("isInverted") if "isInverted" in nvs else nvs.get("gif_negative")
+            player.set_inverted(raw_inv)
         self.mascot.update()
 
     def _stop_audio(self):

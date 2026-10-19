@@ -451,6 +451,7 @@ class AutonomousBrainRouter:
                 latency_ms = round((time.perf_counter() - t0) * 1000, 1)
                 return {
                     "text": clean_reply,
+                    "audio_base64": cloud_res.get("audio_base64", ""),
                     "face": final_face,
                     "emotion": "speaking",
                     "mode": "xiaozhi_cloud (xiaozhi.me/console/agents)",

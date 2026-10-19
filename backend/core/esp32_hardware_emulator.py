@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Coroutine, Dict, List, Optional
 
+import base64
 import httpx
 import websockets
 
@@ -15,6 +16,7 @@ from backend.core.mochi_core_brain import mochi_core_brain
 from backend.core.protocol_engine import protocol_engine
 from backend.core.window_watcher import window_watcher
 from backend.vision.eye_engine import eye_engine
+from backend.voice.xiaozhi_opus import OpusStreamDecoder, text_to_mic_opus_frames
 
 ESP32_STATE_PATH = BASE_DIR / "esp32_hardware_state.json"
 
@@ -735,6 +737,8 @@ class ESP32S3UltimateEmulator:
         sentences: List[str] = []
         emotion_tag: str = "smile"
         tools_invoked: List[str] = []
+        server_opus_frames: List[bytes] = []
+        decoder = OpusStreamDecoder(sample_rate=24000)
 
         try:
             async with websockets.connect(
@@ -759,31 +763,51 @@ class ESP32S3UltimateEmulator:
                 await ws.send(json.dumps(hello_pkt))
 
                 sent_user_prompt = False
-                deadline = time.time() + 18.0
+                deadline = time.time() + 22.0
+
+                async def _send_audio_utterance():
+                    nonlocal sent_user_prompt
+                    if sent_user_prompt:
+                        return
+                    sent_user_prompt = True
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "session_id": self.cloud_session_id,
+                                "type": "listen",
+                                "state": "start",
+                                "mode": "manual",
+                            }
+                        )
+                    )
+                    frames = await text_to_mic_opus_frames(user_text)
+                    for f in frames:
+                        await ws.send(f)
+                        await asyncio.sleep(0.018)
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "session_id": self.cloud_session_id,
+                                "type": "listen",
+                                "state": "stop",
+                            }
+                        )
+                    )
 
                 while time.time() < deadline:
                     try:
                         msg = await asyncio.wait_for(ws.recv(), timeout=4.5)
                     except asyncio.TimeoutError:
-                        if sent_user_prompt and sentences:
+                        if sent_user_prompt and (sentences or server_opus_frames):
                             break
                         if not sent_user_prompt:
-                            sent_user_prompt = True
-                            await ws.send(
-                                json.dumps(
-                                    {
-                                        "session_id": self.cloud_session_id,
-                                        "type": "listen",
-                                        "state": "detect",
-                                        "text": user_text,
-                                    }
-                                )
-                            )
+                            await _send_audio_utterance()
                             continue
                         break
 
                     if isinstance(msg, bytes):
-                        # Binary Opus audio frame from Xiaozhi Cloud
+                        # Binary Opus audio frame from Xiaozhi Cloud TTS
+                        server_opus_frames.append(msg)
                         continue
 
                     data = json.loads(msg)
@@ -813,19 +837,9 @@ class ESP32S3UltimateEmulator:
                                 )
                             )
 
-                        # Right after answering `tools/list`, send the user's text prompt
+                        # Right after answering `tools/list`, stream the user's speech audio
                         if method == "tools/list" and not sent_user_prompt:
-                            sent_user_prompt = True
-                            await ws.send(
-                                json.dumps(
-                                    {
-                                        "session_id": self.cloud_session_id,
-                                        "type": "listen",
-                                        "state": "detect",
-                                        "text": user_text,
-                                    }
-                                )
-                            )
+                            await _send_audio_utterance()
 
                     elif mtype == "llm":
                         emo = data.get("emotion", "")
@@ -847,9 +861,13 @@ class ESP32S3UltimateEmulator:
                             break
 
             full_text = " ".join(sentences).strip()
+            wav_bytes = decoder.decode_many_to_wav(server_opus_frames) if server_opus_frames else None
+            audio_b64 = base64.b64encode(wav_bytes).decode("ascii") if wav_bytes else ""
+
             return {
-                "ok": bool(full_text),
+                "ok": bool(full_text or audio_b64),
                 "text": full_text,
+                "audio_base64": audio_b64,
                 "emotion": emotion_tag,
                 "tools_invoked": tools_invoked,
                 "activation_code": self.activation_code,

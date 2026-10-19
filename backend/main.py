@@ -152,24 +152,38 @@ async def stream_tts_and_bubble(
         }
     )
 
-    sentences = omnivoice_engine.split_sentences(full_text)
-    for sent in sentences:
-        if ear.is_interrupted:
-            break
-        tts_pkg = await omnivoice_engine.synthesize(sent, emotion=emotion, face_name=face_name)
-        if ear.is_interrupted:
-            break
+    cloud_audio = reply_payload.get("audio_base64")
+    if cloud_audio:
         await ws.send_json(
             {
                 "type": "tts_chunk",
-                "sentence": sent,
+                "sentence": full_text,
                 "full_text": full_text,
-                "audio_base64": tts_pkg["audio_base64"],
-                "format": tts_pkg["format"],
-                "lip_sync": tts_pkg["lip_sync"],
-                "engine": tts_pkg["engine"],
+                "audio_base64": cloud_audio,
+                "format": "wav",
+                "lip_sync": [],
+                "engine": "xiaozhi_cloud_opus",
             }
         )
+    else:
+        sentences = omnivoice_engine.split_sentences(full_text)
+        for sent in sentences:
+            if ear.is_interrupted:
+                break
+            tts_pkg = await omnivoice_engine.synthesize(sent, emotion=emotion, face_name=face_name)
+            if ear.is_interrupted:
+                break
+            await ws.send_json(
+                {
+                    "type": "tts_chunk",
+                    "sentence": sent,
+                    "full_text": full_text,
+                    "audio_base64": tts_pkg["audio_base64"],
+                    "format": tts_pkg["format"],
+                    "lip_sync": tts_pkg["lip_sync"],
+                    "engine": tts_pkg["engine"],
+                }
+            )
 
     if not ear.is_interrupted:
         ear.set_state("IDLE")

@@ -14,6 +14,7 @@ Ported directly from `https://themochi.huykhong.com/` (`c3.bin` v4.3.2 + `/thiet
 
 from __future__ import annotations
 
+import base64
 import json
 import random
 import socket
@@ -26,6 +27,7 @@ from backend.vision.mochi_esp32_client import (
     MOCHI_PRESET_MELODIES,
     MOCHI_WEB_LABELS,
     MochiESP32Client,
+    synthesize_mochi_melody_wav,
 )
 from backend.voice.omnivoice_tts import omnivoice_engine
 
@@ -151,6 +153,21 @@ class MochiFirmwareCoreBrain:
                     "emotion": "happy",
                     "nvs": self.nvs,
                 }
+
+        if key == "playNote" and val:
+            try:
+                wav_b = synthesize_mochi_melody_wav(val)
+                b64 = base64.b64encode(wav_b).decode("ascii")
+                return {
+                    "type": "mochi_firmware_event",
+                    "event": "serial_melody_play",
+                    "face": self.current_face,
+                    "display_mode": "face",
+                    "emotion": "happy",
+                    "audio": {"audio_base64": b64, "format": "wav"},
+                }
+            except Exception:
+                pass
 
         if key in ("gif_speed", "gif_delay", "isInverted", "gif_negative", "set"):
             return {

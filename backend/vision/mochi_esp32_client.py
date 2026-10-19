@@ -768,6 +768,24 @@ class MochiFacePlayer:
         self.frame_elapsed_ms = 0.0
         self.loop_Current = loop
 
+    def set_default_face(self, face_name: str) -> None:
+        clean = str(face_name).replace("/gifs/", "").strip()
+        if clean in self.frames_map:
+            self.default_face = clean
+            self.set_face(clean, loop=True)
+
+    def set_speed_pct(self, speed: Any) -> None:
+        try:
+            self.speed_pct = max(50.0, min(200.0, float(speed)))
+        except Exception:
+            self.speed_pct = 100.0
+
+    def set_inverted(self, inverted: Any) -> None:
+        if isinstance(inverted, str):
+            self.inverted = inverted.strip().lower() in ("true", "1", "yes")
+        else:
+            self.inverted = bool(inverted)
+
     def toggle_clock_mode(self, duration_sec: float = 8.0) -> str:
         if self.display_mode == "show_clock":
             self.display_mode = "face"
@@ -848,7 +866,7 @@ class MochiFacePlayer:
                     elif gaze_y > 0.45:
                         self.set_face("nhin_xuong", loop=False)
 
-                if self.current_face == base_idle_face and now >= self.next_idle_quirk_time:
+                if base_idle_face == "mac_dinh" and self.current_face == base_idle_face and now >= self.next_idle_quirk_time:
                     quirk = random.choice(self.IDLE_MICRO_FACES)
                     self.set_face(quirk, loop=False)
                     self.next_idle_quirk_time = now + random.uniform(9.0, 15.0)
