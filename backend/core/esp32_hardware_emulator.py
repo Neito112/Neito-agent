@@ -114,6 +114,8 @@ class ESP32S3UltimateEmulator:
         except Exception:
             pass
 
+    _save_state = save_state
+
     def register_listener(self, cb: Callable[[Dict[str, Any]], Coroutine[Any, Any, None]]) -> None:
         if cb not in self._event_listeners:
             self._event_listeners.append(cb)
@@ -214,7 +216,7 @@ class ESP32S3UltimateEmulator:
         if hw.mac_address:
             self.mac_address = hw.mac_address
             self.state["mac_address"] = hw.mac_address
-            self._save_state()
+            self.save_state()
         return hw.model_dump()
 
     def build_xiaozhi_ota_payload(self) -> Dict[str, Any]:

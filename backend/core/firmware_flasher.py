@@ -147,9 +147,14 @@ class FirmwareFlasherEngine:
         if self._is_flashing:
             return {"ok": False, "error": "Đang có tiến trình nạp firmware khác chạy."}
 
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
         t = threading.Thread(
             target=self._run_flash_worker,
-            args=(preset_id, custom_url, file_path),
+            args=(preset_id, custom_url, file_path, loop),
             daemon=True,
         )
         t.start()
@@ -160,6 +165,7 @@ class FirmwareFlasherEngine:
         preset_id: Optional[str] = None,
         custom_url: Optional[str] = None,
         file_path: Optional[str] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
     ):
         self._is_flashing = True
         self.progress_pct = 0
@@ -289,12 +295,11 @@ class FirmwareFlasherEngine:
                 "display_mode": "face",
                 "emotion": "happy",
             }
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
+            if loop and loop.is_running():
+                try:
                     asyncio.run_coroutine_threadsafe(mochi_core_brain.broadcast_event(evt), loop)
-            except Exception:
-                pass
+                except Exception:
+                    pass
 
         except Exception as e:
             self.state = "error"
